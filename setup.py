@@ -28,7 +28,7 @@ setup(
             "pytest",
         ],
     },
-    ext_modules=[cpp_extension.CppExtension("torchsort", ["torchsort/isotonic.cpp"])],
+    ext_modules=[cpp_extension.CppExtension("torchsort_cpp", ["torchsort/isotonic.cpp"])],
     cmdclass={"build_ext": cpp_extension.BuildExtension},
     include_package_data=True,
 )

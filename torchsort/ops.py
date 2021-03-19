@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import torch
+import torchsort_cpp
 
 from . import isotonic
 
@@ -97,7 +98,7 @@ def isotonic_l2(s, w=None):
     if w is None:
         w = _reverse(_arange_like(s)) + 1
     sol = torch.zeros_like(s)
-    isotonic.isotonic_l2(s - w, sol)
+    torchsort_cpp.isotonic_l2(s - w, sol)
     return sol
 
 
