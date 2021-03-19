@@ -3,6 +3,7 @@
 import os
 
 from setuptools import setup
+from torch.utils import cpp_extension
 
 directory = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(directory, "README.md"), encoding="utf-8") as f:
@@ -27,5 +28,7 @@ setup(
             "pytest",
         ],
     },
+    ext_modules=[cpp_extension.CppExtension("torchsort", ["torchsort/isotonic.cpp"])],
+    cmdclass={"build_ext": cpp_extension.BuildExtension},
     include_package_data=True,
 )
