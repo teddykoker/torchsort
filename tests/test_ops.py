@@ -1,8 +1,9 @@
-import torch
 from functools import partial
-import pytest
 
-from torchsort.ops import soft_rank, soft_sort
+import pytest
+import torch
+
+from torchsort import soft_rank, soft_sort
 
 EPS = 1e-5
 ATOL = 1e-3

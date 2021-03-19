@@ -38,6 +38,7 @@ import torch
 # - do not return solution in place, rather save in array `sol`,
 # - avoid some needless multiplications.
 
+
 @torch.jit.script
 def isotonic_l2(y, sol):
     """Solves an isotonic regression problem using PAV.
