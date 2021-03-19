@@ -2,12 +2,15 @@
 #include <iostream>
 
 using namespace torch::indexing;
+using namespace std;
 
-void isotonic_l2(torch::Tensor y, torch::Tensor sol) {
+
+torch::Tensor isotonic_l2(torch::Tensor y) {
     auto n = y.size(0);
-    auto target = torch::arange(n, y.device());
+    auto target = torch::arange(n, torch::dtype(torch::kInt32));
     auto c = torch::ones_like(y);
     auto sums = torch::ones_like(y);
+    auto sol = torch::zeros_like(y);
     
     for (int i = 0; i < n; i++) {
         sol[i] = y[i];
@@ -16,11 +19,14 @@ void isotonic_l2(torch::Tensor y, torch::Tensor sol) {
 
     int i = 0;
     while (i < n) {
-        auto k = target[i].item<int64_t>();
+        auto k = target[i].item<int>();
+        
+        // cout << k << "REEEE";
+
         if (k == n) {
             break;
         }
-        if (sol[i].item<int64_t>() > sol[k].item<int64_t>()) {
+        if (sol[i].item<double>() > sol[k].item<double>()) {
             i = k;
             continue;
         }
@@ -29,11 +35,11 @@ void isotonic_l2(torch::Tensor y, torch::Tensor sol) {
         while (true) {
             // Non-singleton increasing subsequence is finished,
             // update first entry.
-            auto prev_y = sol[k].item<int64_t>();
+            auto prev_y = sol[k].item<double>();
             sum_y += sums[k];
             sum_c += c[k];
-            k = target[k].item<int64_t>() + 1;
-            if ((k == n) || (prev_y > sol[k].item<int64_t>())) {
+            k = target[k].item<int>() + 1;
+            if ((k == n) || (prev_y > sol[k].item<double>())) {
                 sol[i] = sum_y / sum_c;
                 sums[i] = sum_y;
                 c[i] = sum_c;
@@ -42,7 +48,7 @@ void isotonic_l2(torch::Tensor y, torch::Tensor sol) {
                 if (i > 0) {
                     // Backtrack if we can.  This makes the algorithm
                     // single-pass and ensures O(n) complexity.
-                    i = target[i - 1].item<int64_t>();
+                    i = target[i - 1].item<int>();
                 }
                 // Otherwise, restart from the same point
                 break;
@@ -56,6 +62,7 @@ void isotonic_l2(torch::Tensor y, torch::Tensor sol) {
         sol.index_put_({Slice(i + 1, k, None)}, sol[i]);
         i = k;
     }
+    return sol;
 }
     
 
