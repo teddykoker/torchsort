@@ -1,10 +1,55 @@
+
+//  Copyright 2007-2020 The scikit-learn developers.
+//  Copyright 2020 Google LLC.
+//  Copyright 2021 Teddy Koker.
+//  All rights reserved.
+// 
+//  Redistribution and use in source and binary forms, with or without
+//  modification, are permitted provided that the following conditions are met:
+// 
+//    a. Redistributions of source code must retain the above copyright notice,
+//       this list of conditions and the following disclaimer.
+//    b. Redistributions in binary form must reproduce the above copyright
+//       notice, this list of conditions and the following disclaimer in the
+//       documentation and/or other materials provided with the distribution.
+//    c. Neither the name of the Scikit-learn Developers  nor the names of
+//       its contributors may be used to endorse or promote products
+//       derived from this software without specific prior written
+//       permission.
+// 
+//  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+//  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+//  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+//  ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE FOR
+//  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+//  DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+//  SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+//  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+//  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+//  OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
+//  DAMAGE.
+
+
+
 #include <torch/extension.h>
 #include <iostream>
 
 using namespace torch::indexing;
 using namespace std;
 
+//  Copied from fast-soft-sort (https://bit.ly/3r0gOav) with the following modifications:
+//  - replace numpy functions with torch equivalents
+//  - re-write in C++
+//  - return solution in place
 
+//  Copied from scikit-learn with the following modifications:
+//  - use decreasing constraints by default,
+//  - do not return solution in place, rather save in array `sol`,
+//  - avoid some needless multiplications.
+
+
+// Solves an isotonic regression problem using PAV.
+// Formally, it solves argmin_{v_1 >= ... >= v_n} 0.5 ||v - y||^2.
 torch::Tensor isotonic_l2(torch::Tensor y) {
     auto n = y.size(0);
     auto target = torch::arange(n);
@@ -33,13 +78,14 @@ torch::Tensor isotonic_l2(torch::Tensor y) {
         auto sum_y = sums[i];
         auto sum_c = c[i];
         while (true) {
-            // Non-singleton increasing subsequence is finished,
-            // update first entry.
+            // We are within an increasing subsequence
             auto prev_y = sol[k].item<double>();
             sum_y += sums[k];
             sum_c += c[k];
             k = target[k].item<int>() + 1;
             if ((k == n) || (prev_y > sol[k].item<double>())) {
+                // Non-singleton increasing subsequence is finished,
+                // update first entry.
                 sol[i] = sum_y / sum_c;
                 sums[i] = sum_y;
                 c[i] = sum_c;
@@ -65,15 +111,17 @@ torch::Tensor isotonic_l2(torch::Tensor y) {
     return sol;
 }
     
-//*
+
 // Numerically stable log-add-exp
-//
 torch::Tensor log_add_exp(torch::Tensor x, torch::Tensor y) {
     auto larger = torch::max(x, y);
     auto smaller = torch::min(x, y);
     return larger + torch::log1p(torch::exp(smaller - larger));
 }
 
+
+// Solves isotonic optimization with KL divergence using PAV.
+// Formally, it solves argmin_{v_1 >= ... >= v_n} <e^{y-v}, 1> + <e^w, v>.
 torch::Tensor isotonic_kl(torch::Tensor y, torch::Tensor w) {
     auto n = y.size(0);
     auto target = torch::arange(n);
@@ -109,6 +157,8 @@ torch::Tensor isotonic_kl(torch::Tensor y, torch::Tensor w) {
             lse_w = log_add_exp(lse_w, lse_w_[k]);
             k = target[k].item<int>() + 1;
             if ((k == n) || (prev_y > sol[k].item<double>())) {
+                // Non-singleton increasing subsequence is finished,
+                // update first entry.
                 sol[i] = lse_y - lse_w;
                 lse_y_[i] = lse_y;
                 lse_w_[i] = lse_w;
