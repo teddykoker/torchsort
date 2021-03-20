@@ -43,7 +43,7 @@ class SoftRank(torch.autograd.Function):
     @staticmethod
     def forward(ctx, tensor, regularization="l2", regularization_strength=1.0):
         ctx.scale = 1.0 / regularization_strength
-        w = _reverse(_arange_like(tensor)) + 1
+        w = _arange_like(tensor, reverse=True) + 1
         if regularization == "l2":
             ctx.projection = Projection(tensor * ctx.scale, w, regularization)
             ctx.factor = 1.0
@@ -61,22 +61,19 @@ class SoftRank(torch.autograd.Function):
         return out, None, None
 
 
-def _reverse(x):
-    return torch.flip(x, [0])
-
-
-def _arange_like(x):
-    return torch.arange(len(x), dtype=x.dtype, device=x.device)
+def _arange_like(x, reverse=False):
+    if reverse:
+        return torch.arange(x.shape[0] - 1, -1, -1, dtype=x.dtype, device=x.device)
+    return torch.arange(x.shape[0], dtype=x.dtype, device=x.device)
 
 
 class SoftSort(torch.autograd.Function):
     @staticmethod
     def forward(ctx, tensor, regularization="l2", regularization_strength=1.0):
         ctx.sign = -1
-        w = (_reverse(_arange_like(tensor)) + 1) / regularization_strength
+        w = (_arange_like(tensor, reverse=True) + 1) / regularization_strength
         tensor = ctx.sign * tensor  # for ascending
-        ctx.permutation = _reverse(torch.argsort(tensor))
-        s = tensor[ctx.permutation]
+        s, ctx.permutation = torch.sort(tensor, descending=True)
         ctx.isotonic = Isotonic(w, s, regularization=regularization)
         ret = ctx.isotonic.compute()
         ctx.isotonic.s = s
@@ -93,14 +90,15 @@ class SoftSort(torch.autograd.Function):
 
 
 def isotonic_l2(s, w=None):
+    # return torch.zeros_like(s)
     if w is None:
-        w = _reverse(_arange_like(s)) + 1
+        w = _arange_like(s, reverse=True) + 1
     return torchsort_cpp.isotonic_l2(s - w)
 
 
 def isotonic_kl(s, w=None):
     if w is None:
-        w = _reverse(_arange_like(s)) + 1
+        w = _arange_like(s, reverse=True) + 1
     return torchsort_cpp.isotonic_kl(s, w)
 
 
@@ -167,8 +165,7 @@ class Projection:
         self.regularization = regularization
 
     def compute(self):
-        self.permutation = _reverse(torch.argsort(self.theta))
-        s = self.theta[self.permutation]
+        s, self.permutation = torch.sort(self.theta, descending=True)
         self._isotonic = Isotonic(s, self.w, self.regularization)
         dual_sol = self._isotonic.compute()
         primal_sol = s - dual_sol
