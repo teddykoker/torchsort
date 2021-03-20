@@ -7,7 +7,7 @@ using namespace std;
 
 torch::Tensor isotonic_l2(torch::Tensor y) {
     auto n = y.size(0);
-    auto target = torch::arange(n, torch::dtype(torch::kInt32));
+    auto target = torch::arange(n);
     auto c = torch::ones_like(y);
     auto sums = torch::ones_like(y);
     auto sol = torch::zeros_like(y);
@@ -20,9 +20,6 @@ torch::Tensor isotonic_l2(torch::Tensor y) {
     int i = 0;
     while (i < n) {
         auto k = target[i].item<int>();
-        
-        // cout << k << "REEEE";
-
         if (k == n) {
             break;
         }
