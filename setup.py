@@ -27,6 +27,7 @@ setup(
     extras_require={
         "testing": [
             "pytest",
+            "torch",
         ],
     },
     ext_modules=[
