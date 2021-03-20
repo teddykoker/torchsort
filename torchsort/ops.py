@@ -103,9 +103,7 @@ def isotonic_l2(s, w=None):
 def isotonic_kl(s, w=None):
     if w is None:
         w = _reverse(_arange_like(s)) + 1
-    sol = torch.zeros_like(s)
-    isotonic.isotonic_kl(s, w, sol)
-    return sol
+    return torchsort_cpp.isotonic_kl(s, w)
 
 
 def _partition(solution, eps=1e-9):

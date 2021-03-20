@@ -40,7 +40,7 @@ import torch
 
 
 @torch.jit.script
-def isotonic_l2(y, sol):
+def isotonic_l2(y):
     """Solves an isotonic regression problem using PAV.
 
     Formally, it solves argmin_{v_1 >= ... >= v_n} 0.5 ||v - y||^2.
@@ -53,6 +53,7 @@ def isotonic_l2(y, sol):
     target = torch.arange(n, device=y.device)
     c = torch.ones_like(y)
     sums = torch.zeros_like(y)
+    sol = torch.zeros_like(y)
 
     # target describes a list of blocks.  At any time, if [i..j] (inclusive) is
     # an active block, then target[i] := j and target[j] := i.
@@ -66,6 +67,8 @@ def isotonic_l2(y, sol):
         k = target[i] + 1
         if k == n:
             break
+        print("py i:", i)
+        print("py k:", k)
         if sol[i] > sol[k]:
             i = k
             continue
@@ -98,6 +101,8 @@ def isotonic_l2(y, sol):
         k = target[i] + 1
         sol[i + 1 : k] = sol[i]
         i = k
+
+    return sol
 
 
 @torch.jit.script
