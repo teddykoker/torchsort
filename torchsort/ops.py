@@ -16,8 +16,6 @@
 import torch
 import torchsort_cpp
 
-from . import isotonic
-
 
 def soft_rank(values, regularization="l2", regularization_strength=1.0):
     if len(values.shape) != 2:
