@@ -14,6 +14,7 @@ setup(
     version="0.0.1",
     description="Differentiable sorting and ranking in PyTorch",
     author="Teddy Koker",
+    url="https://github.com/teddykoker/torchsort",
     license="Apache",
     long_description=long_description,
     long_description_content_type="text/markdown",
