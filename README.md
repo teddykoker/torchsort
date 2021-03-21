@@ -57,7 +57,7 @@ torch.autograd.grad(y[0, 0], x)
 
 ## Benchmark
 
-![Benchmark](extra/benchmark.png)
+![Benchmark](https://github.com/teddykoker/torchsort/raw/main/extra/benchmark.png)
 
 `torchsort` and `fast_soft_sort` each operate with a time complexity of *O(n log
 n)*, each with some additional overhead when compared to the built-in
