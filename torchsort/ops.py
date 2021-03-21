@@ -14,8 +14,11 @@
 # limitations under the License.
 
 import torch
-from isotonic_cpu import isotonic_kl as isotonic_kl_cpu
+
 from isotonic_cpu import isotonic_l2 as isotonic_l2_cpu
+from isotonic_cpu import isotonic_l2_backward as isotonic_l2_backward_cpu
+from isotonic_cpu import isotonic_kl as isotonic_kl_cpu
+from isotonic_cpu import isotonic_kl_backward as isotonic_kl_backward_cpu
 
 
 def soft_rank(values, regularization="l2", regularization_strength=1.0):
@@ -136,17 +139,11 @@ class Isotonic:
         return self._solution
 
     def vjp(self, vector):
-        start = 0
-        ret = torch.zeros_like(self._solution)
-        for size in _partition(self._solution):
-            end = start + size
-            if self.regularization == "l2":
-                val = 1.0 / size
-            else:
-                val = torch.softmax(self.s[start:end], dim=0)
-            ret[start:end] = val * torch.sum(vector[start:end])
-            start = end
-        return ret
+        print("python", _partition(self._solution))
+        if self.regularization == "l2":
+            return isotonic_l2_backward_cpu(self.s, self._solution, vector)
+        else:
+            return isotonic_kl_backward_cpu(self.s, self._solution, vector)
 
 
 def _inv_permutation(permutation):
