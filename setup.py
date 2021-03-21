@@ -11,7 +11,7 @@ with open(os.path.join(directory, "README.md"), encoding="utf-8") as f:
 
 setup(
     name="torchsort",
-    version="0.0.3",
+    version="0.0.4",
     description="Differentiable sorting and ranking in PyTorch",
     author="Teddy Koker",
     url="https://github.com/teddykoker/torchsort",
