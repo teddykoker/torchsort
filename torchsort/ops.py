@@ -90,11 +90,9 @@ class SoftSort(torch.autograd.Function):
 
 
 def isotonic_l2(s, w=None):
-    # return torch.zeros_like(s)
     if w is None:
         w = _arange_like(s, reverse=True) + 1
     return torchsort_cpp.isotonic_l2(s - w)
-
 
 def isotonic_kl(s, w=None):
     if w is None:
