@@ -15,10 +15,10 @@
 
 import torch
 
-from isotonic_cpu import isotonic_kl as isotonic_kl_cpu
-from isotonic_cpu import isotonic_kl_backward as isotonic_kl_backward_cpu
-from isotonic_cpu import isotonic_l2 as isotonic_l2_cpu
-from isotonic_cpu import isotonic_l2_backward as isotonic_l2_backward_cpu
+from .isotonic_cpu import isotonic_kl as isotonic_kl_cpu
+from .isotonic_cpu import isotonic_kl_backward as isotonic_kl_backward_cpu
+from .isotonic_cpu import isotonic_l2 as isotonic_l2_cpu
+from .isotonic_cpu import isotonic_l2_backward as isotonic_l2_backward_cpu
 
 
 def soft_rank(values, regularization="l2", regularization_strength=1.0):
