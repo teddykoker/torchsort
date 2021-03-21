@@ -37,6 +37,7 @@
 //  - replace numpy functions with torch equivalents
 //  - re-write in C++
 //  - return solution in place
+//  - added backward pass (vector jacobian product)
 
 //  Copied from scikit-learn with the following modifications:
 //  - use decreasing constraints by default,
@@ -50,6 +51,27 @@ inline scalar_t log_add_exp(scalar_t x, scalar_t y) {
     scalar_t smaller = std::min(x, y);
     return larger + std::log1p(std::exp(smaller - larger));
 }
+
+// Returns partition corresponding to solution."""
+template <typename scalar_t>
+std::vector<int> partition(torch::TensorAccessor<scalar_t, 1> solution, int n) {
+    const scalar_t eps = 1.0e-9;
+
+    if (n == 0) {
+        return std::vector<int>();
+    }
+
+    std::vector<int> sizes{1};
+    
+    for (int i = 1; i < n; i++) {
+        if (std::abs(solution[i] - solution[i - 1]) > eps) {
+            sizes.push_back(0);
+        }
+        sizes[sizes.size() - 1] += 1;
+    }
+    return sizes;
+}
+
 
 template <typename scalar_t>
 void isotonic_l2_kernel(
@@ -180,6 +202,62 @@ void isotonic_kl_kernel(
     }
 }
 
+
+template <typename scalar_t>
+void isotonic_l2_backward_kernel(
+    torch::TensorAccessor<scalar_t, 1> s, // not used
+    torch::TensorAccessor<scalar_t, 1> sol,
+    torch::TensorAccessor<scalar_t, 1> grad_input,
+    torch::TensorAccessor<scalar_t, 1> ret,
+    int n) {
+    int end;
+    int start = 0;
+    scalar_t sum;
+    scalar_t val;
+
+    for (int size: partition(sol, n)) {
+        end = start + size;
+        sum = 0;
+        val = 1.0 / (scalar_t) size;
+        
+        for (int i = start; i < end; i++) {
+            sum += grad_input[i];
+        }
+        for (int i = start; i < end; i++) {
+            ret[i] = val * sum;
+        }
+        start = end;
+    }
+}
+
+template <typename scalar_t>
+void isotonic_kl_backward_kernel(
+    torch::TensorAccessor<scalar_t, 1> s,
+    torch::TensorAccessor<scalar_t, 1> sol,
+    torch::TensorAccessor<scalar_t, 1> grad_input,
+    torch::TensorAccessor<scalar_t, 1> ret,
+    int n) {
+    int end;
+    int start = 0;
+    scalar_t sum;
+    scalar_t softmax;
+
+    for (int size: partition(sol, n)) {
+        end = start + size;
+        sum = 0;
+        softmax = 0;
+        
+        for (int i = start; i < end; i++) {
+            softmax += std::exp(s[i]);
+            sum += grad_input[i];
+        }
+        for (int i = start; i < end; i++) {
+            ret[i] = std::exp(s[i]) / softmax * sum;
+        }
+        start = end;
+    }
+}
+
 // Solves an isotonic regression problem using PAV.
 // Formally, it solves argmin_{v_1 >= ... >= v_n} 0.5 ||v - y||^2.
 torch::Tensor isotonic_l2(torch::Tensor y) {
@@ -223,7 +301,40 @@ torch::Tensor isotonic_kl(torch::Tensor y, torch::Tensor w) {
     return sol;
 }
 
+torch::Tensor isotonic_l2_backward(torch::Tensor s, torch::Tensor sol, torch::Tensor grad_input) {
+    auto n = sol.size(0);
+    auto ret = torch::zeros_like(sol);
+
+    AT_DISPATCH_FLOATING_TYPES(sol.scalar_type(), "isotonic_l2_backward", ([&] {
+        isotonic_l2_backward_kernel<scalar_t>(
+            s.accessor<scalar_t, 1>(),
+            sol.accessor<scalar_t, 1>(),
+            grad_input.accessor<scalar_t, 1>(),
+            ret.accessor<scalar_t, 1>(),
+            n);
+    }));
+    return ret;
+}
+
+torch::Tensor isotonic_kl_backward(torch::Tensor s, torch::Tensor sol, torch::Tensor grad_input) {
+    auto n = sol.size(0);
+    auto ret = torch::zeros_like(sol);
+
+    AT_DISPATCH_FLOATING_TYPES(sol.scalar_type(), "isotonic_kl_backward", ([&] {
+        isotonic_kl_backward_kernel<scalar_t>(
+            s.accessor<scalar_t, 1>(),
+            sol.accessor<scalar_t, 1>(),
+            grad_input.accessor<scalar_t, 1>(),
+            ret.accessor<scalar_t, 1>(),
+            n);
+    }));
+    return ret;
+}
+
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("isotonic_l2", &isotonic_l2, "Isotonic L2");
+  m.def("isotonic_l2_backward", &isotonic_l2_backward, "Isotonic L2 Backward");
   m.def("isotonic_kl", &isotonic_kl, "Isotonic KL");
+  m.def("isotonic_kl_backward", &isotonic_kl_backward, "Isotonic KL Backward");
 }

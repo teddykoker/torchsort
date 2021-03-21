@@ -14,139 +14,42 @@
 # limitations under the License.
 
 import torch
-from isotonic_cpu import isotonic_kl as isotonic_kl_cpu
-from isotonic_cpu import isotonic_l2 as isotonic_l2_cpu
+
+from .isotonic_cpu import isotonic_kl as isotonic_kl_cpu
+from .isotonic_cpu import isotonic_kl_backward as isotonic_kl_backward_cpu
+from .isotonic_cpu import isotonic_l2 as isotonic_l2_cpu
+from .isotonic_cpu import isotonic_l2_backward as isotonic_l2_backward_cpu
 
 
 def soft_rank(values, regularization="l2", regularization_strength=1.0):
-    device = values.device
     if len(values.shape) != 2:
         raise ValueError(f"'values' should be a 2d-tensor but got {values.shape}")
-    return torch.stack(
-        [
-            SoftRank.apply(t, regularization, regularization_strength)
-            for t in torch.unbind(values.cpu())
-        ]
+    device = values.device
+    return _apply_batch(
+        SoftRank.apply, values.cpu(), regularization, regularization_strength
     ).to(device)
 
 
 def soft_sort(values, regularization="l2", regularization_strength=1.0):
-    device = values.device
     if len(values.shape) != 2:
         raise ValueError(f"'values' should be a 2d-tensor but got {values.shape}")
-    return torch.stack(
-        [
-            SoftSort.apply(t, regularization, regularization_strength)
-            for t in torch.unbind(values.cpu())
-        ]
+    device = values.device
+    return _apply_batch(
+        SoftSort.apply, values.cpu(), regularization, regularization_strength
     ).to(device)
 
 
-class SoftRank(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, tensor, regularization="l2", regularization_strength=1.0):
-        ctx.scale = 1.0 / regularization_strength
-        w = _arange_like(tensor, reverse=True) + 1
-        if regularization == "l2":
-            ctx.projection = Projection(tensor * ctx.scale, w, regularization)
-            ctx.factor = 1.0
-            return ctx.projection.compute()
-        else:
-            ctx.projection = Projection(
-                tensor * ctx.scale, torch.log(w), regularization
-            )
-            ctx.factor = torch.exp(ctx.projection.compute())
-            return ctx.factor
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        out = ctx.projection.vjp(ctx.factor * grad_output) * ctx.scale
-        return out, None, None
+def _apply_batch(f, tensor, *args, **kwargs):
+    """Apply function f with args to the first dimension of tensor and then stack"""
+    # TODO: this shouldn't be necessary, need to implement extra dimension in C++ code.
+    return torch.stack([f(t, *args, **kwargs) for t in torch.unbind(tensor)])
 
 
 def _arange_like(x, reverse=False):
+    """Returns arange with len of x of the same dtype and device"""
     if reverse:
         return torch.arange(x.shape[0] - 1, -1, -1, dtype=x.dtype, device=x.device)
     return torch.arange(x.shape[0], dtype=x.dtype, device=x.device)
-
-
-class SoftSort(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, tensor, regularization="l2", regularization_strength=1.0):
-        ctx.sign = -1
-        w = (_arange_like(tensor, reverse=True) + 1) / regularization_strength
-        tensor = ctx.sign * tensor  # for ascending
-        s, ctx.permutation = torch.sort(tensor, descending=True)
-        ctx.isotonic = Isotonic(w, s, regularization=regularization)
-        ret = ctx.isotonic.compute()
-        ctx.isotonic.s = s
-        return ctx.sign * (w - ret)
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        inv_permutation = _inv_permutation(ctx.permutation)
-        return ctx.isotonic.vjp(grad_output)[inv_permutation], None, None
-
-
-# Below is copied from google-research/fast-soft-sort with the following modifications:
-# - replace numpy functions with torch equivalent
-
-
-def isotonic_l2(s, w=None):
-    if w is None:
-        w = _arange_like(s, reverse=True) + 1
-    return isotonic_l2_cpu(s - w)
-
-
-def isotonic_kl(s, w=None):
-    if w is None:
-        w = _arange_like(s, reverse=True) + 1
-    return isotonic_kl_cpu(s, w)
-
-
-def _partition(solution, eps=1e-9):
-    """Returns partition corresponding to solution."""
-    if len(solution) == 0:
-        return []
-
-    sizes = [1]
-
-    for i in range(1, len(solution)):
-        if abs(solution[i] - solution[i - 1]) > eps:
-            sizes.append(0)
-        sizes[-1] += 1
-
-    return sizes
-
-
-class Isotonic:
-    """Isotonic optimization."""
-
-    def __init__(self, s, w, regularization="l2"):
-        self.s = s
-        self.w = w
-        self.regularization = regularization
-        self._solution = None
-
-    def compute(self):
-        if self.regularization == "l2":
-            self._solution = isotonic_l2(self.s, self.w)
-        else:
-            self._solution = isotonic_kl(self.s, self.w)
-        return self._solution
-
-    def vjp(self, vector):
-        start = 0
-        ret = torch.zeros_like(self._solution)
-        for size in _partition(self._solution):
-            end = start + size
-            if self.regularization == "l2":
-                val = 1.0 / size
-            else:
-                val = torch.softmax(self.s[start:end], dim=0)
-            ret[start:end] = val * torch.sum(vector[start:end])
-            start = end
-        return ret
 
 
 def _inv_permutation(permutation):
@@ -156,25 +59,71 @@ def _inv_permutation(permutation):
     return inv_permutation
 
 
-class Projection:
-    """Computes projection onto the permutahedron P(w)."""
+# The following is from google-research/fast-soft-sort with the following modifications:
+# - replace numpy functions with torch equivalent
+# - remove uncessary operations
+# - reimplement backward pass in C++
 
-    def __init__(self, theta, w=None, regularization="l2"):
-        if w is None:
-            w = _arange_like(theta) + 1
-        self.theta = theta
-        self.w = w
-        self.regularization = regularization
 
-    def compute(self):
-        s, self.permutation = torch.sort(self.theta, descending=True)
-        self._isotonic = Isotonic(s, self.w, self.regularization)
-        dual_sol = self._isotonic.compute()
-        primal_sol = s - dual_sol
-        self.inv_permutation = _inv_permutation(self.permutation)
-        return primal_sol[self.inv_permutation]
+class SoftRank(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, tensor, regularization="l2", regularization_strength=1.0):
+        ctx.scale = 1.0 / regularization_strength
+        ctx.regularization = regularization
+        w = _arange_like(tensor, reverse=True) + 1
+        theta = tensor * ctx.scale
+        s, permutation = torch.sort(theta, descending=True)
+        inv_permutation = _inv_permutation(permutation)
+        if ctx.regularization == "l2":
+            dual_sol = isotonic_l2_cpu(s - w)
+            ret = (s - dual_sol)[inv_permutation]
+            ctx.factor = 1.0
+        else:
+            dual_sol = isotonic_kl_cpu(s, torch.log(w))
+            ret = torch.exp((s - dual_sol)[inv_permutation])
+            ctx.factor = ret
 
-    def vjp(self, vector):
-        ret = vector.clone()
-        ret -= self._isotonic.vjp(vector[self.permutation])[self.inv_permutation]
+        ctx.save_for_backward(s, dual_sol, permutation, inv_permutation)
         return ret
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        grad = (grad_output * ctx.factor).clone()
+        s, dual_sol, permutation, inv_permutation = ctx.saved_tensors
+        if ctx.regularization == "l2":
+            grad -= isotonic_l2_backward_cpu(s, dual_sol, grad[permutation])[
+                inv_permutation
+            ]
+        else:
+            grad -= isotonic_kl_backward_cpu(s, dual_sol, grad[permutation])[
+                inv_permutation
+            ]
+        return grad * ctx.scale, None, None
+
+
+class SoftSort(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, tensor, regularization="l2", regularization_strength=1.0):
+        ctx.sign = -1
+        ctx.regularization = regularization
+        w = (_arange_like(tensor, reverse=True) + 1) / regularization_strength
+        tensor = ctx.sign * tensor  # for ascending
+        s, permutation = torch.sort(tensor, descending=True)
+
+        # note reverse order of args
+        if ctx.regularization == "l2":
+            sol = isotonic_l2_cpu(w - s)
+        else:
+            sol = isotonic_kl_cpu(w, s)
+        ctx.save_for_backward(s, sol, permutation)
+        return ctx.sign * (w - sol)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        s, sol, permutation = ctx.saved_tensors
+        inv_permutation = _inv_permutation(permutation)
+        if ctx.regularization == "l2":
+            grad = isotonic_l2_backward_cpu(s, sol, grad_output)
+        else:
+            grad = isotonic_kl_backward_cpu(s, sol, grad_output)
+        return grad[inv_permutation], None, None
