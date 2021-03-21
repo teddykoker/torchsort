@@ -1,7 +1,49 @@
+//  Copyright 2007-2020 The scikit-learn developers.
+//  Copyright 2020 Google LLC.
+//  Copyright 2021 Teddy Koker.
+//  All rights reserved.
+// 
+//  Redistribution and use in source and binary forms, with or without
+//  modification, are permitted provided that the following conditions are met:
+// 
+//    a. Redistributions of source code must retain the above copyright notice,
+//       this list of conditions and the following disclaimer.
+//    b. Redistributions in binary form must reproduce the above copyright
+//       notice, this list of conditions and the following disclaimer in the
+//       documentation and/or other materials provided with the distribution.
+//    c. Neither the name of the Scikit-learn Developers  nor the names of
+//       its contributors may be used to endorse or promote products
+//       derived from this software without specific prior written
+//       permission.
+// 
+//  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+//  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+//  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+//  ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE FOR
+//  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+//  DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+//  SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+//  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+//  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+//  OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
+//  DAMAGE.
+
+
 #include <torch/extension.h>
 #include <algorithm>
 #include <cmath>
 
+//  Copied from fast-soft-sort (https://bit.ly/3r0gOav) with the following modifications:
+//  - replace numpy functions with torch equivalents
+//  - re-write in C++
+//  - return solution in place
+
+//  Copied from scikit-learn with the following modifications:
+//  - use decreasing constraints by default,
+//  - do not return solution in place, rather save in array `sol`,
+//  - avoid some needless multiplications.
+
+// Numerically stable log-add-exp
 template <typename scalar_t>
 inline scalar_t log_add_exp(scalar_t x, scalar_t y) {
     scalar_t larger = std::max(x, y);
@@ -73,8 +115,6 @@ void isotonic_l2_kernel(
     }
 }
 
-// Solves isotonic optimization with KL divergence using PAV.
-// Formally, it solves argmin_{v_1 >= ... >= v_n} <e^{y-v}, 1> + <e^w, v>.
 template <typename scalar_t>
 void isotonic_kl_kernel(
     torch::TensorAccessor<scalar_t, 1> y,
@@ -140,63 +180,46 @@ void isotonic_kl_kernel(
     }
 }
 
+// Solves an isotonic regression problem using PAV.
+// Formally, it solves argmin_{v_1 >= ... >= v_n} 0.5 ||v - y||^2.
 torch::Tensor isotonic_l2(torch::Tensor y) {
     auto n = y.size(0);
     auto sol = torch::zeros_like(y);
     auto sums = torch::zeros_like(y);
     auto target = torch::zeros_like(y);
     auto c = torch::zeros_like(y);
-    switch (y.type().scalarType()) {
-        case torch::ScalarType::Double:
-            isotonic_l2_kernel<double>(
-                y.accessor<double, 1>(),
-                sol.accessor<double, 1>(),
-                sums.accessor<double, 1>(),
-                target.accessor<double, 1>(),
-                c.accessor<double, 1>(),
-                n);
-            break;
-        case torch::ScalarType::Float:
-            isotonic_l2_kernel<float>(
-                y.accessor<float, 1>(),
-                sol.accessor<float, 1>(),
-                sums.accessor<float, 1>(),
-                target.accessor<float, 1>(),
-                c.accessor<float, 1>(),
-                n);
-            break;
-    }
+
+    AT_DISPATCH_FLOATING_TYPES(y.scalar_type(), "isotonic_l2", ([&] {
+        isotonic_l2_kernel<scalar_t>(
+            y.accessor<scalar_t, 1>(),
+            sol.accessor<scalar_t, 1>(),
+            sums.accessor<scalar_t, 1>(),
+            target.accessor<scalar_t, 1>(),
+            c.accessor<scalar_t, 1>(),
+            n);
+    }));
     return sol;
 }
 
+// Solves isotonic optimization with KL divergence using PAV.
+// Formally, it solves argmin_{v_1 >= ... >= v_n} <e^{y-v}, 1> + <e^w, v>.
 torch::Tensor isotonic_kl(torch::Tensor y, torch::Tensor w) {
     auto n = y.size(0);
     auto sol = torch::zeros_like(y);
     auto lse_y_ = torch::zeros_like(y);
     auto lse_w_ = torch::zeros_like(y);
     auto target = torch::zeros_like(y);
-    switch (y.type().scalarType()) {
-        case torch::ScalarType::Double:
-            isotonic_kl_kernel<double>(
-                y.accessor<double, 1>(),
-                w.accessor<double, 1>(),
-                sol.accessor<double, 1>(),
-                lse_y_.accessor<double, 1>(),
-                lse_w_.accessor<double, 1>(),
-                target.accessor<double, 1>(),
-                n);
-            break;
-        case torch::ScalarType::Float:
-            isotonic_kl_kernel<float>(
-                y.accessor<float, 1>(),
-                w.accessor<float, 1>(),
-                sol.accessor<float, 1>(),
-                lse_y_.accessor<float, 1>(),
-                lse_w_.accessor<float, 1>(),
-                target.accessor<float, 1>(),
-                n);
-            break;
-    }
+
+    AT_DISPATCH_FLOATING_TYPES(y.scalar_type(), "isotonic_kl", ([&] {
+        isotonic_kl_kernel<scalar_t>(
+            y.accessor<scalar_t, 1>(),
+            w.accessor<scalar_t, 1>(),
+            sol.accessor<scalar_t, 1>(),
+            lse_y_.accessor<scalar_t, 1>(),
+            lse_w_.accessor<scalar_t, 1>(),
+            target.accessor<scalar_t, 1>(),
+            n);
+    }));
     return sol;
 }
 
