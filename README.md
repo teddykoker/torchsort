@@ -2,17 +2,19 @@
 
 ![Tests](https://github.com/teddykoker/torchsort/workflows/Tests/badge.svg)
 
-**NOTE**: The C++ isotonic regression solver is currently only implemented on
-CPU, so CUDA tensors will be copied over to CPU to perform the operations. I am
-currently working on the CUDA kernel implementation, which should be done soon.
-
-A fast and differentiable sorting and ranking in PyTorch.
+Fast, differentiable sorting and ranking in PyTorch.
 
 Pure PyTorch implementation of [Fast Differentiable Sorting and
 Ranking](https://arxiv.org/abs/2002.08871) (Blondel et al.). Much of the code is
 copied from the original Numpy implementation at
 [google-research/fast-soft-sort](https://github.com/google-research/fast-soft-sort),
 with the isotonic regression solver rewritten as a PyTorch C++ Extension.
+
+**NOTE**: I am actively working on this. The API should remain about the same;
+but expect more optimizations and benchmarks soon. The C++ isotonic regression
+solver is currently only implemented on CPU, so CUDA tensors will be copied over
+to CPU to perform the operations. I am currently working on the CUDA kernel
+implementation, which should be done soon.
 
 ## Install
 
