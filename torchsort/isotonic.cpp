@@ -50,28 +50,27 @@ using namespace std;
 
 // Solves an isotonic regression problem using PAV.
 // Formally, it solves argmin_{v_1 >= ... >= v_n} 0.5 ||v - y||^2.
-torch::Tensor isotonic_l2(torch::Tensor y) {
-    auto n = y.size(0);
-    auto target = torch::arange(n);
-    auto c = torch::ones_like(y);
-    auto sums = torch::ones_like(y);
-    auto sol = torch::zeros_like(y);
-
+template <class T>
+void _isotonic_l2(int n, T* y, T* sol) {
+    T c[n];
+    T sums[n];
+    int target[n];
     // target describes a list of blocks.  At any time, if [i..j] (inclusive) is
     // an active block, then target[i] := j and target[j] := i.
-    
     for (int i = 0; i < n; i++) {
+        c[i] = 1.0;
         sol[i] = y[i];
         sums[i] = y[i];
+        target[i] = i;
     }
 
     int i = 0;
     while (i < n) {
-        auto k = target[i].item<int>() + 1;
+        auto k = target[i] + 1;
         if (k == n) {
             break;
         }
-        if (sol[i].item<double>() > sol[k].item<double>()) {
+        if (sol[i] > sol[k]) {
             i = k;
             continue;
         }
@@ -79,11 +78,11 @@ torch::Tensor isotonic_l2(torch::Tensor y) {
         auto sum_c = c[i];
         while (true) {
             // We are within an increasing subsequence
-            auto prev_y = sol[k].item<double>();
+            auto prev_y = sol[k];
             sum_y += sums[k];
             sum_c += c[k];
-            k = target[k].item<int>() + 1;
-            if ((k == n) || (prev_y > sol[k].item<double>())) {
+            k = target[k] + 1;
+            if ((k == n) || (prev_y > sol[k])) {
                 // Non-singleton increasing subsequence is finished,
                 // update first entry.
                 sol[i] = sum_y / sum_c;
@@ -94,7 +93,7 @@ torch::Tensor isotonic_l2(torch::Tensor y) {
                 if (i > 0) {
                     // Backtrack if we can.  This makes the algorithm
                     // single-pass and ensures O(n) complexity.
-                    i = target[i - 1].item<int>();
+                    i = target[i - 1];
                 }
                 // Otherwise, restart from the same point
                 break;
@@ -104,11 +103,30 @@ torch::Tensor isotonic_l2(torch::Tensor y) {
     // Reconstruct the solution
     i = 0;
     while (i < n) {
-        auto k = target[i].item<int64_t>() + 1;
-        sol.index_put_({Slice(i + 1, k, None)}, sol[i]);
+        auto k = target[i] + 1;
+        for (int j = i + 1; j < k; j++) {
+            sol[j] = sol[i];
+        }
         i = k;
     }
-    return sol;
+}
+
+torch::Tensor isotonic_l2(torch::Tensor y) {
+    auto n = y.size(0);
+    auto dtype = y.dtype();
+    auto device = y.device();
+
+    if (dtype == at::kDouble) {
+        double sol[n];
+        double* _y = y.to(at::kCPU).data_ptr<double>();
+        _isotonic_l2(n, _y, sol);
+        return torch::from_blob(sol, {n}, at::kDouble).clone();
+    } else if (dtype == at::kFloat) {
+        float sol[n];
+        float* _y = y.to(at::kCPU).data_ptr<float>();
+        _isotonic_l2(n, _y, sol);
+        return torch::from_blob(sol, {n}, at::kFloat).clone();
+    }
 }
     
 
