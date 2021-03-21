@@ -14,7 +14,8 @@
 # limitations under the License.
 
 import torch
-import torchsort_cpp
+from isotonic_cpu import isotonic_l2 as isotonic_l2_cpu
+from isotonic_cpu import isotonic_kl as isotonic_kl_cpu
 
 
 def soft_rank(values, regularization="l2", regularization_strength=1.0):
@@ -92,12 +93,12 @@ class SoftSort(torch.autograd.Function):
 def isotonic_l2(s, w=None):
     if w is None:
         w = _arange_like(s, reverse=True) + 1
-    return torchsort_cpp.isotonic_l2(s - w)
+    return isotonic_l2_cpu(s - w)
 
 def isotonic_kl(s, w=None):
     if w is None:
         w = _arange_like(s, reverse=True) + 1
-    return torchsort_cpp.isotonic_kl(s, w)
+    return isotonic_kl_cpu(s, w)
 
 
 def _partition(solution, eps=1e-9):

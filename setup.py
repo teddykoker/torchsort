@@ -31,7 +31,9 @@ setup(
         ],
     },
     ext_modules=[
-        cpp_extension.CppExtension("torchsort_cpp", ["torchsort/isotonic.cpp"])
+        cpp_extension.CppExtension(
+            "isotonic_cpu", ["torchsort/isotonic_cpu.cpp"]
+        ),
     ],
     cmdclass={"build_ext": cpp_extension.BuildExtension},
     include_package_data=True,
