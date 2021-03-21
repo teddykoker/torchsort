@@ -14,6 +14,7 @@ REGULARIZATION_STRENGTH = [1e-1, 1e0, 1e1]
 
 torch.manual_seed(0)
 
+
 @pytest.mark.parametrize("function", [soft_rank, soft_sort])
 @pytest.mark.parametrize("regularization", REGULARIZATION)
 @pytest.mark.parametrize("regularization_strength", REGULARIZATION_STRENGTH)
