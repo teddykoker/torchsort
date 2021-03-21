@@ -11,7 +11,6 @@ if __name__ == "__main__":
     print("mine", timeit(lambda: torchsort.soft_rank(x), number=1000))
     print("theirs", timeit(lambda: fast_soft_sort.soft_rank(x), number=1000))
 
-
     # with profiler.profile() as prof:
     #     with profiler.record_function("soft_rank"):
     #         torchsort.soft_rank(x)

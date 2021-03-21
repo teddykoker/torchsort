@@ -2,10 +2,9 @@
 
 ![Tests](https://github.com/teddykoker/torchsort/workflows/Tests/badge.svg)
 
-**NOTE**: The C++ isotonic regression solver is currently slower than the Numba
-JIT version by the original authors. Please use
-[google-research/fast-soft-sort](https://github.com/google-research/fast-soft-sort)
-in the mean time.
+**NOTE**: The C++ isotonic regression solver is currently only implemented on
+CPU, so CUDA tensors will be copied over to CPU to perform the operations. I am
+currently working on the CUDA kernel implementation, which should be done soon.
 
 A fast and differentiable sorting and ranking in PyTorch.
 
