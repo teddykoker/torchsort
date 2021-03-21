@@ -16,7 +16,7 @@ REGULARIZATION_STRENGTH = [1e-1, 1e0, 1e1]
 @pytest.mark.parametrize("function", [soft_rank, soft_sort])
 @pytest.mark.parametrize("regularization", REGULARIZATION)
 @pytest.mark.parametrize("regularization_strength", REGULARIZATION_STRENGTH)
-def test_soft_rank(function, regularization, regularization_strength):
+def test_gradcheck(function, regularization, regularization_strength):
     x = torch.randn(5, 10, dtype=torch.float64, requires_grad=True)
     f = partial(
         function,
