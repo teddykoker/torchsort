@@ -12,12 +12,13 @@ RTOL = 1e-3
 REGULARIZATION = ["l2", "kl"]
 REGULARIZATION_STRENGTH = [1e-1, 1e0, 1e1]
 
+torch.manual_seed(0)
 
 @pytest.mark.parametrize("function", [soft_rank, soft_sort])
 @pytest.mark.parametrize("regularization", REGULARIZATION)
 @pytest.mark.parametrize("regularization_strength", REGULARIZATION_STRENGTH)
 def test_gradcheck(function, regularization, regularization_strength):
-    x = torch.randn(5, 10, dtype=torch.float64, requires_grad=True)
+    x = torch.randn(8, 10, dtype=torch.float64, requires_grad=True)
     f = partial(
         function,
         regularization=regularization,
