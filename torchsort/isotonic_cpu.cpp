@@ -37,6 +37,7 @@
 //  - replace numpy functions with torch equivalents
 //  - re-write in C++
 //  - return solution in place
+//  - added backward pass (vector jacobian product)
 
 //  Copied from scikit-learn with the following modifications:
 //  - use decreasing constraints by default,
@@ -50,6 +51,29 @@ inline scalar_t log_add_exp(scalar_t x, scalar_t y) {
     scalar_t smaller = std::min(x, y);
     return larger + std::log1p(std::exp(smaller - larger));
 }
+
+
+
+// Returns partition corresponding to solution."""
+template <typename scalar_t>
+std::vector<int> partition(torch::TensorAccessor<scalar_t, 1> solution, int n) {
+    const scalar_t eps = 1.0e-9;
+
+    if (n == 0) {
+        return std::vector<int>();
+    }
+
+    std::vector<int> sizes{1};
+    
+    for (int i = 1; i < n; i++) {
+        if (std::abs(solution[i] - solution[i - 1]) > eps) {
+            sizes.push_back(0);
+        }
+        sizes[sizes.size() - 1] += 1;
+    }
+    return sizes;
+}
+
 
 template <typename scalar_t>
 void isotonic_l2_kernel(
