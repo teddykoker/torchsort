@@ -53,7 +53,7 @@ inline scalar_t log_add_exp(scalar_t x, scalar_t y) {
 
 template <typename scalar_t>
 void isotonic_l2_kernel(
-    torch::TensorAccessor<scalar_t, 1> y,
+    torch::TensorAccessor<scalar_t, 1> s,
     torch::TensorAccessor<scalar_t, 1> sol,
     torch::TensorAccessor<scalar_t, 1> sums,
     torch::TensorAccessor<scalar_t, 1> target,
@@ -63,8 +63,8 @@ void isotonic_l2_kernel(
     // an active block, then target[i] := j and target[j] := i.
     for (int i = 0; i < n; i++) {
         c[i] = 1.0;
-        sol[i] = y[i];
-        sums[i] = y[i];
+        sol[i] = s[i];
+        sums[i] = s[i];
         target[i] = i;
     }
 

@@ -14,30 +14,32 @@
 # limitations under the License.
 
 import torch
-from isotonic_cpu import isotonic_l2 as isotonic_l2_cpu
 from isotonic_cpu import isotonic_kl as isotonic_kl_cpu
+from isotonic_cpu import isotonic_l2 as isotonic_l2_cpu
 
 
 def soft_rank(values, regularization="l2", regularization_strength=1.0):
+    device = values.device
     if len(values.shape) != 2:
         raise ValueError(f"'values' should be a 2d-tensor but got {values.shape}")
     return torch.stack(
         [
             SoftRank.apply(t, regularization, regularization_strength)
-            for t in torch.unbind(values)
+            for t in torch.unbind(values.cpu())
         ]
-    )
+    ).to(device)
 
 
 def soft_sort(values, regularization="l2", regularization_strength=1.0):
+    device = values.device
     if len(values.shape) != 2:
         raise ValueError(f"'values' should be a 2d-tensor but got {values.shape}")
     return torch.stack(
         [
             SoftSort.apply(t, regularization, regularization_strength)
-            for t in torch.unbind(values)
+            for t in torch.unbind(values.cpu())
         ]
-    )
+    ).to(device)
 
 
 class SoftRank(torch.autograd.Function):
@@ -94,6 +96,7 @@ def isotonic_l2(s, w=None):
     if w is None:
         w = _arange_like(s, reverse=True) + 1
     return isotonic_l2_cpu(s - w)
+
 
 def isotonic_kl(s, w=None):
     if w is None:
