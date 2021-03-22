@@ -35,19 +35,13 @@ except ImportError:
 def soft_rank(values, regularization="l2", regularization_strength=1.0):
     if len(values.shape) != 2:
         raise ValueError(f"'values' should be a 2d-tensor but got {values.shape}")
-    device = values.device
-    return SoftRank.apply(values.cpu(), regularization, regularization_strength).to(
-        device
-    )
+    return SoftRank.apply(values, regularization, regularization_strength)
 
 
 def soft_sort(values, regularization="l2", regularization_strength=1.0):
     if len(values.shape) != 2:
         raise ValueError(f"'values' should be a 2d-tensor but got {values.shape}")
-    device = values.device
-    return SoftSort.apply(values.cpu(), regularization, regularization_strength).to(
-        device
-    )
+    return SoftSort.apply(values, regularization, regularization_strength)
 
 
 isotonic_l2 = {"cpu": isotonic_l2_cpu, "cuda": isotonic_l2_cuda}
