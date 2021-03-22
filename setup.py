@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import sys
 
 from setuptools import setup
 from torch.utils import cpp_extension
@@ -8,6 +9,14 @@ from torch.utils import cpp_extension
 directory = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(directory, "README.md"), encoding="utf-8") as f:
     long_description = f.read()
+
+
+def compile_args():
+    args = ["-fopenmp", "-ffast-math"]
+    if sys.platform == "darwin":
+        return ["-Xpreprocessor"] + args
+    return args
+
 
 setup(
     name="torchsort",
@@ -35,7 +44,7 @@ setup(
         cpp_extension.CppExtension(
             "torchsort.isotonic_cpu",
             sources=["torchsort/isotonic_cpu.cpp"],
-            extra_compile_args=["-fopenmp", "-ffast-math"],
+            extra_compile_args=compile_args(),
         ),
     ],
     cmdclass={"build_ext": cpp_extension.BuildExtension},
