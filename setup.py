@@ -31,6 +31,7 @@ def ext_modules():
             cpp_extension.CUDAExtension(
                 "torchsort.isotonic_cuda",
                 sources=["torchsort/isotonic_cuda.cu"],
+                extra_compile_args=["-arch=compute_50"],
             )
         )
     return extensions
