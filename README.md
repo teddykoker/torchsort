@@ -61,10 +61,15 @@ torch.autograd.grad(y[0, 0], x)
 
 `torchsort` and `fast_soft_sort` each operate with a time complexity of *O(n log
 n)*, each with some additional overhead when compared to the built-in
-`torch.sort`. The Numba JIT'd forward pass of `fast_soft_sort` performs about
-on-par with the `torchsort` CPU kernel, however its backward pass still relies on
-some Python code, which greatly penalizes its performance. CUDA kernel is coming
-soon!
+`torch.sort`. With a batch size of 1 (see left), the Numba JIT'd forward pass of
+`fast_soft_sort` performs about on-par with the `torchsort` CPU kernel, however
+its backward pass still relies on some Python code, which greatly penalizes its
+performance. 
+
+Furthermore, the `torchsort` kernel supports batches, and yields much better
+performance than `fast_soft_sort` as the batch size increases.
+
+CUDA kernel is coming soon!
 
 ## Reference
 
