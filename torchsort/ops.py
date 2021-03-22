@@ -50,6 +50,18 @@ def soft_sort(values, regularization="l2", regularization_strength=1.0):
     )
 
 
+isotonic_l2 = {"cpu": isotonic_l2_cpu, "cuda": isotonic_l2_cuda}
+isotonic_kl = {"cpu": isotonic_kl_cpu, "cuda": isotonic_kl_cuda}
+isotonic_l2_backward = {
+    "cpu": isotonic_l2_backward_cpu,
+    "cuda": isotonic_l2_backward_cuda,
+}
+isotonic_kl_backward = {
+    "cpu": isotonic_kl_backward_cpu,
+    "cuda": isotonic_kl_backward_cuda,
+}
+
+
 def _arange_like(x, reverse=False):
     # returns arange with len of x of the same dtype and device (assumes 2d, first dim batch)
     if reverse:
@@ -82,11 +94,11 @@ class SoftRank(torch.autograd.Function):
         s, permutation = torch.sort(theta, descending=True)
         inv_permutation = _inv_permutation(permutation)
         if ctx.regularization == "l2":
-            dual_sol = isotonic_l2_cpu(s - w)
+            dual_sol = isotonic_l2[s.device.type](s - w)
             ret = (s - dual_sol).gather(1, inv_permutation)
             ctx.factor = 1.0
         else:
-            dual_sol = isotonic_kl_cpu(s, torch.log(w))
+            dual_sol = isotonic_kl[s.device.type](s, torch.log(w))
             ret = torch.exp((s - dual_sol).gather(1, inv_permutation))
             ctx.factor = ret
 
@@ -98,11 +110,11 @@ class SoftRank(torch.autograd.Function):
         grad = (grad_output * ctx.factor).clone()
         s, dual_sol, permutation, inv_permutation = ctx.saved_tensors
         if ctx.regularization == "l2":
-            grad -= isotonic_l2_backward_cpu(
+            grad -= isotonic_l2_backward[s.device.type](
                 s, dual_sol, grad.gather(1, permutation)
             ).gather(1, inv_permutation)
         else:
-            grad -= isotonic_kl_backward_cpu(
+            grad -= isotonic_kl_backward[s.device.type](
                 s, dual_sol, grad.gather(1, permutation)
             ).gather(1, inv_permutation)
         return grad * ctx.scale, None, None
@@ -119,9 +131,9 @@ class SoftSort(torch.autograd.Function):
 
         # note reverse order of args
         if ctx.regularization == "l2":
-            sol = isotonic_l2_cpu(w - s)
+            sol = isotonic_l2[s.device.type](w - s)
         else:
-            sol = isotonic_kl_cpu(w, s)
+            sol = isotonic_kl[s.device.type](w, s)
         ctx.save_for_backward(s, sol, permutation)
         return ctx.sign * (w - sol)
 
@@ -130,7 +142,7 @@ class SoftSort(torch.autograd.Function):
         s, sol, permutation = ctx.saved_tensors
         inv_permutation = _inv_permutation(permutation)
         if ctx.regularization == "l2":
-            grad = isotonic_l2_backward_cpu(s, sol, grad_output)
+            grad = isotonic_l2_backward[s.device.type](s, sol, grad_output)
         else:
-            grad = isotonic_kl_backward_cpu(s, sol, grad_output)
+            grad = isotonic_kl_backward[s.device.type](s, sol, grad_output)
         return grad.gather(1, inv_permutation), None, None
