@@ -30,24 +30,34 @@ def backward(f, x):
     torch.autograd.grad(y.sum(), x)
 
 
+def style(name):
+    if name == "torch.sort":
+        return {"color": "blue"}
+    linestyle = "--" if "backward" in name else "-"
+    if "fast_soft_sort" in name:
+        return {"color": "green", "linestyle": linestyle}
+    else:
+        return {"color": "orange", "linestyle": linestyle}
+
+
 def batch_size(ax):
     data = defaultdict(list)
     jit = False
     for b in B:
         x = torch.randn(b, 100)
         data["torch.sort"].append(time(lambda: torch.sort(x)))
-        data["torchsort (forward)"].append(time(lambda: torchsort.soft_sort(x)))
-        data["fast_soft_sort (forward)"].append(time(lambda: fss.soft_sort(x)))
+        data["torchsort"].append(time(lambda: torchsort.soft_sort(x)))
+        data["fast_soft_sort"].append(time(lambda: fss.soft_sort(x)))
         x = torch.randn(b, 100, requires_grad=True)
-        data["torchsort (forward + backward)"].append(
+        data["torchsort (with backward)"].append(
             time(lambda: backward(torchsort.soft_sort, x))
         )
-        data["fast_soft_sort (forward + backward)"].append(
+        data["fast_soft_sort (with backward)"].append(
             time(lambda: backward(fss.soft_sort, x))
         )
 
     for label in data.keys():
-        ax.plot(B, data[label], label=label)
+        ax.plot(B, data[label], label=label, **style(label))
     ax.set_xlabel("Batch Size")
     ax.set_ylim(0, 5000)
     ax.set_ylabel("Execution Time (μs)")
@@ -60,18 +70,18 @@ def sequence_length(ax):
     for n in N:
         x = torch.randn(1, n)
         data["torch.sort"].append(time(lambda: torch.sort(x)))
-        data["torchsort (forward)"].append(time(lambda: torchsort.soft_sort(x)))
-        data["fast_soft_sort (forward)"].append(time(lambda: fss.soft_sort(x)))
+        data["torchsort"].append(time(lambda: torchsort.soft_sort(x)))
+        data["fast_soft_sort"].append(time(lambda: fss.soft_sort(x)))
         x = torch.randn(1, n, requires_grad=True)
-        data["torchsort (forward + backward)"].append(
+        data["torchsort (with backward)"].append(
             time(lambda: backward(torchsort.soft_sort, x))
         )
-        data["fast_soft_sort (forward + backward)"].append(
+        data["fast_soft_sort (with backward)"].append(
             time(lambda: backward(fss.soft_sort, x))
         )
 
     for label in data.keys():
-        ax.plot(N, data[label], label=label)
+        ax.plot(N, data[label], label=label, **style(label))
     ax.set_xlabel("Sequence Length")
     ax.set_ylim(0, 1000)
     ax.set_ylabel("Execution Time (μs)")
