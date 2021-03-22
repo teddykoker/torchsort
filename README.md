@@ -73,9 +73,7 @@ CUDA kernel is coming soon!
 
 ## Reference
 
-Please site the original paper:
-
-```
+```bibtex
 @inproceedings{blondel2020fast,
   title={Fast differentiable sorting and ranking},
   author={Blondel, Mathieu and Teboul, Olivier and Berthet, Quentin and Djolonga, Josip},
