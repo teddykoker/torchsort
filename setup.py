@@ -3,6 +3,7 @@
 import os
 from functools import lru_cache
 from subprocess import DEVNULL, call
+import sys
 
 from setuptools import setup
 from torch.utils import cpp_extension
@@ -18,12 +19,19 @@ def cuda_toolkit_available():
         return False
 
 
+def compile_args():
+    args = ["-fopenmp", "-ffast-math"]
+    if sys.platform == "darwin":
+        return ["-Xpreprocessor"] + args
+    return args
+
+
 def ext_modules():
     extensions = [
         cpp_extension.CppExtension(
             "torchsort.isotonic_cpu",
             sources=["torchsort/isotonic_cpu.cpp"],
-            extra_compile_args=["-fopenmp", "-ffast-math"],
+            extra_compile_args=compile_args(),
         ),
     ]
     if cuda_toolkit_available():
@@ -39,9 +47,11 @@ def ext_modules():
 
 with open("README.md") as f:
     long_description = f.read()
+
+
 setup(
     name="torchsort",
-    version="0.0.5",
+    version="0.0.7",
     description="Differentiable sorting and ranking in PyTorch",
     author="Teddy Koker",
     url="https://github.com/teddykoker/torchsort",
