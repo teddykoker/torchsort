@@ -11,7 +11,7 @@ with open(os.path.join(directory, "README.md"), encoding="utf-8") as f:
 
 setup(
     name="torchsort",
-    version="0.0.4",
+    version="0.0.5",
     description="Differentiable sorting and ranking in PyTorch",
     author="Teddy Koker",
     url="https://github.com/teddykoker/torchsort",
@@ -32,7 +32,9 @@ setup(
     },
     ext_modules=[
         cpp_extension.CppExtension(
-            "torchsort.isotonic_cpu", ["torchsort/isotonic_cpu.cpp"]
+            "torchsort.isotonic_cpu",
+            sources=["torchsort/isotonic_cpu.cpp"],
+            extra_compile_args=["-fopenmp", "-ffast-math"],
         ),
     ],
     cmdclass={"build_ext": cpp_extension.BuildExtension},
