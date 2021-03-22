@@ -25,37 +25,33 @@ def soft_rank(values, regularization="l2", regularization_strength=1.0):
     if len(values.shape) != 2:
         raise ValueError(f"'values' should be a 2d-tensor but got {values.shape}")
     device = values.device
-    return _apply_batch(
-        SoftRank.apply, values.cpu(), regularization, regularization_strength
-    ).to(device)
+    return SoftRank.apply(values.cpu(), regularization, regularization_strength).to(
+        device
+    )
 
 
 def soft_sort(values, regularization="l2", regularization_strength=1.0):
     if len(values.shape) != 2:
         raise ValueError(f"'values' should be a 2d-tensor but got {values.shape}")
     device = values.device
-    return _apply_batch(
-        SoftSort.apply, values.cpu(), regularization, regularization_strength
-    ).to(device)
-
-
-def _apply_batch(f, tensor, *args, **kwargs):
-    """Apply function f with args to the first dimension of tensor and then stack"""
-    # TODO: this shouldn't be necessary, need to implement extra dimension in C++ code.
-    return torch.stack([f(t, *args, **kwargs) for t in torch.unbind(tensor)])
+    return SoftSort.apply(values.cpu(), regularization, regularization_strength).to(
+        device
+    )
 
 
 def _arange_like(x, reverse=False):
-    """Returns arange with len of x of the same dtype and device"""
+    # returns arange with len of x of the same dtype and device (assumes 2d, first dim batch)
     if reverse:
-        return torch.arange(x.shape[0] - 1, -1, -1, dtype=x.dtype, device=x.device)
-    return torch.arange(x.shape[0], dtype=x.dtype, device=x.device)
+        ar = torch.arange(x.shape[1] - 1, -1, -1, dtype=x.dtype, device=x.device)
+    else:
+        ar = torch.arange(x.shape[1], dtype=x.dtype, device=x.device)
+    return ar.expand(x.shape[0], -1)
 
 
 def _inv_permutation(permutation):
-    """Returns inverse permutation of 'permutation'."""
+    # returns inverse permutation of 'permutation'. (assumes 2d, first dim batch)
     inv_permutation = torch.zeros_like(permutation)
-    inv_permutation.scatter_(0, permutation, _arange_like(permutation))
+    inv_permutation.scatter_(1, permutation, _arange_like(permutation))
     return inv_permutation
 
 
@@ -76,11 +72,11 @@ class SoftRank(torch.autograd.Function):
         inv_permutation = _inv_permutation(permutation)
         if ctx.regularization == "l2":
             dual_sol = isotonic_l2_cpu(s - w)
-            ret = (s - dual_sol)[inv_permutation]
+            ret = (s - dual_sol).gather(1, inv_permutation)
             ctx.factor = 1.0
         else:
             dual_sol = isotonic_kl_cpu(s, torch.log(w))
-            ret = torch.exp((s - dual_sol)[inv_permutation])
+            ret = torch.exp((s - dual_sol).gather(1, inv_permutation))
             ctx.factor = ret
 
         ctx.save_for_backward(s, dual_sol, permutation, inv_permutation)
@@ -91,13 +87,13 @@ class SoftRank(torch.autograd.Function):
         grad = (grad_output * ctx.factor).clone()
         s, dual_sol, permutation, inv_permutation = ctx.saved_tensors
         if ctx.regularization == "l2":
-            grad -= isotonic_l2_backward_cpu(s, dual_sol, grad[permutation])[
-                inv_permutation
-            ]
+            grad -= isotonic_l2_backward_cpu(
+                s, dual_sol, grad.gather(1, permutation)
+            ).gather(1, inv_permutation)
         else:
-            grad -= isotonic_kl_backward_cpu(s, dual_sol, grad[permutation])[
-                inv_permutation
-            ]
+            grad -= isotonic_kl_backward_cpu(
+                s, dual_sol, grad.gather(1, permutation)
+            ).gather(1, inv_permutation)
         return grad * ctx.scale, None, None
 
 
@@ -126,4 +122,4 @@ class SoftSort(torch.autograd.Function):
             grad = isotonic_l2_backward_cpu(s, sol, grad_output)
         else:
             grad = isotonic_kl_backward_cpu(s, sol, grad_output)
-        return grad[inv_permutation], None, None
+        return grad.gather(1, inv_permutation), None, None
