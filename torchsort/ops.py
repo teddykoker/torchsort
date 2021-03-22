@@ -15,11 +15,10 @@
 
 import torch
 
-from .isotonic_cpu import \
-    isotonic_kl as isotonic_kl_cpu, \
-    isotonic_kl_backward as isotonic_kl_backward_cpu, \
-    isotonic_l2 as isotonic_l2_cpu, \
-    isotonic_l2_backward as isotonic_l2_backward_cpu,
+from .isotonic_cpu import isotonic_kl as isotonic_kl_cpu
+from .isotonic_cpu import isotonic_kl_backward as isotonic_kl_backward_cpu
+from .isotonic_cpu import isotonic_l2 as isotonic_l2_cpu
+from .isotonic_cpu import isotonic_l2_backward as isotonic_l2_backward_cpu
 
 try:
     from .isotonic_cuda import isotonic_kl as isotonic_kl_cuda
