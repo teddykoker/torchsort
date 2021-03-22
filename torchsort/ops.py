@@ -19,6 +19,10 @@ from .isotonic_cpu import isotonic_kl as isotonic_kl_cpu
 from .isotonic_cpu import isotonic_kl_backward as isotonic_kl_backward_cpu
 from .isotonic_cpu import isotonic_l2 as isotonic_l2_cpu
 from .isotonic_cpu import isotonic_l2_backward as isotonic_l2_backward_cpu
+from .isotonic_cuda import isotonic_kl as isotonic_kl_cuda
+from .isotonic_cuda import isotonic_kl_backward as isotonic_kl_backward_cuda
+from .isotonic_cuda import isotonic_l2 as isotonic_l2_cuda
+from .isotonic_cuda import isotonic_l2_backward as isotonic_l2_backward_cuda
 
 
 def soft_rank(values, regularization="l2", regularization_strength=1.0):

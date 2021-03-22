@@ -1,14 +1,43 @@
 #!/usr/bin/env python3
 
 import os
+from functools import lru_cache
+from subprocess import DEVNULL, call
 
 from setuptools import setup
 from torch.utils import cpp_extension
 
-directory = os.path.abspath(os.path.dirname(__file__))
-with open(os.path.join(directory, "README.md"), encoding="utf-8") as f:
-    long_description = f.read()
 
+@lru_cache(None)
+def cuda_toolkit_available():
+    # https://github.com/idiap/fast-transformers/blob/master/setup.py
+    try:
+        call(["nvcc"], stdout=DEVNULL, stderr=DEVNULL)
+        return True
+    except FileNotFoundError:
+        return False
+
+
+def ext_modules():
+    extensions = [
+        cpp_extension.CppExtension(
+            "torchsort.isotonic_cpu",
+            sources=["torchsort/isotonic_cpu.cpp"],
+            extra_compile_args=["-fopenmp", "-ffast-math"],
+        ),
+    ]
+    if cuda_toolkit_available():
+        extensions.append(
+            cpp_extension.CUDAExtension(
+                "torchsort.isotonic_cuda",
+                sources=["torchsort/isotonic_cuda.cu"],
+            )
+        )
+    return extensions
+
+
+with open("README.md") as f:
+    long_description = f.read()
 setup(
     name="torchsort",
     version="0.0.5",
@@ -30,13 +59,7 @@ setup(
             "torch",
         ],
     },
-    ext_modules=[
-        cpp_extension.CppExtension(
-            "torchsort.isotonic_cpu",
-            sources=["torchsort/isotonic_cpu.cpp"],
-            extra_compile_args=["-fopenmp", "-ffast-math"],
-        ),
-    ],
+    ext_modules=ext_modules(),
     cmdclass={"build_ext": cpp_extension.BuildExtension},
     include_package_data=True,
 )
