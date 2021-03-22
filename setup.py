@@ -20,7 +20,7 @@ def compile_args():
 
 setup(
     name="torchsort",
-    version="0.0.6",
+    version="0.0.7",
     description="Differentiable sorting and ranking in PyTorch",
     author="Teddy Koker",
     url="https://github.com/teddykoker/torchsort",
