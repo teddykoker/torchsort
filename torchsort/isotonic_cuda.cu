@@ -30,8 +30,9 @@
 
 
 #include <torch/extension.h>
-#include <algorithm>
-#include <cmath>
+// #include <cuda.h>
+// #include <cuda_runtime.h>
+// #include <iostream>
 
 //  Copied from fast-soft-sort (https://bit.ly/3r0gOav) with the following modifications:
 //  - replace numpy functions with torch equivalents
@@ -43,326 +44,349 @@
 //  - use decreasing constraints by default,
 //  - do not return solution in place, rather save in array `sol`,
 //  - avoid some needless multiplications.
+// namespace {
 
 // Numerically stable log-add-exp
-template <typename scalar_t>
-inline scalar_t log_add_exp(scalar_t x, scalar_t y) {
-    scalar_t larger = std::max(x, y);
-    scalar_t smaller = std::min(x, y);
-    return larger + std::log1p(std::exp(smaller - larger));
-}
+// template <typename scalar_t>
+// __device__ __forceinline__ scalar_t log_add_exp(scalar_t x, scalar_t y) {
+//     scalar_t larger = max(x, y);
+//     scalar_t smaller = min(x, y);
+//     return larger + log1p(exp(smaller - larger));
+// }
 
 // Returns partition corresponding to solution."""
-template <typename scalar_t>
-std::vector<int> partition(torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> solution, int n, int b) {
-    const scalar_t eps = 1.0e-9;
-
-    if (n == 0) {
-        return std::vector<int>();
-    }
-
-    std::vector<int> sizes{1};
-    
-    for (int i = 1; i < n; i++) {
-        if (std::abs(solution[b][i] - solution[b][i - 1]) > eps) {
-            sizes.push_back(0);
-        }
-        sizes[sizes.size() - 1] += 1;
-    }
-    return sizes;
-}
-
-
-template <typename scalar_t>
-void isotonic_l2_kernel(
-    torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> s,
-    torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> sol,
-    torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> sums,
-    torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> target,
-    torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> c,
-    int n,
-    int batch) {
-
-    #pragma omp parellel for
-    for (int b = 0; b < batch; b++) {
-        // target describes a list of blocks.  at any time, if [i..j] (inclusive) is
-        // an active block, then target[i] := j and target[j] := i.
-        for (int i = 0; i < n; i++) {
-            c[b][i] = 1.0;
-            sol[b][i] = s[b][i];
-            sums[b][i] = s[b][i];
-            target[b][i] = i;
-        }
-
-        int i = 0;
-        while (i < n) {
-            auto k = target[b][i] + 1;
-            if (k == n) {
-                break;
-            }
-            if (sol[b][i] > sol[b][k]) {
-                i = k;
-                continue;
-            }
-            auto sum_y = sums[b][i];
-            auto sum_c = c[b][i];
-            while (true) {
-                // We are within an increasing subsequence
-                auto prev_y = sol[b][k];
-                sum_y += sums[b][k];
-                sum_c += c[b][k];
-                k = target[b][k] + 1;
-                if ((k == n) || (prev_y > sol[b][k])) {
-                    // Non-singleton increasing subsequence is finished,
-                    // update first entry.
-                    sol[b][i] = sum_y / sum_c;
-                    sums[b][i] = sum_y;
-                    c[b][i] = sum_c;
-                    target[b][i] = k - 1;
-                    target[b][k - 1] = i;
-                    if (i > 0) {
-                        // Backtrack if we can.  This makes the algorithm
-                        // single-pass and ensures O(n) complexity.
-                        i = target[b][i - 1];
-                    }
-                    // Otherwise, restart from the same point
-                    break;
-                }
-            }
-        }
-        // Reconstruct the solution
-        i = 0;
-        while (i < n) {
-            auto k = target[b][i] + 1;
-            for (int j = i + 1; j < k; j++) {
-                sol[b][j] = sol[b][i];
-            }
-            i = k;
-        }
-    }
-}
-
-template <typename scalar_t>
-void isotonic_kl_kernel(
-    torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> y,
-    torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> w,
-    torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> sol,
-    torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> lse_y_,
-    torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> lse_w_,
-    torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> target,
-    int n,
-    int batch) {
-
-    #pragma omp parellel for
-    for (int b = 0; b < batch; b++) {
-        // target describes a list of blocks.  At any time, if [i..j] (inclusive) is
-        // an active block, then target[i] := j and target[j] := i.
-        for (int i = 0; i < n; i++) {
-            sol[b][i] = y[b][i] - w[b][i];
-            lse_y_[b][i] = y[b][i];
-            lse_w_[b][i] = w[b][i];
-            target[b][i] = i;
-        }
-
-        int i = 0;
-        while (i < n) {
-            auto k = target[b][i] + 1;
-            if (k == n) {
-                break;
-            }
-            if (sol[b][i] > sol[b][k]) {
-                i = k;
-                continue;
-            }
-            auto lse_y = lse_y_[b][i];
-            auto lse_w = lse_w_[b][i];
-            while (true) {
-                // We are within an increasing subsequence
-                auto prev_y = sol[b][k];
-                lse_y = log_add_exp(lse_y, lse_y_[b][k]);
-                lse_w = log_add_exp(lse_w, lse_w_[b][k]);
-                k = target[b][k] + 1;
-                if ((k == n) || (prev_y > sol[b][k])) {
-                    // Non-singleton increasing subsequence is finished,
-                    // update first entry.
-                    sol[b][i] = lse_y - lse_w;
-                    lse_y_[b][i] = lse_y;
-                    lse_w_[b][i] = lse_w;
-                    target[b][i] = k - 1;
-                    target[b][k - 1] = i;
-                    if (i > 0) {
-                        // Backtrack if we can.  This makes the algorithm
-                        // single-pass and ensures O(n) complexity.
-                        i = target[b][i - 1];
-                    }
-                    // Otherwise, restart from the same point
-                    break;
-                }
-            }
-        }
-        // Reconstruct the solution
-        i = 0;
-        while (i < n) {
-            auto k = target[b][i] + 1;
-            for (int j = i + 1; j < k; j++) {
-                sol[b][j] = sol[b][i];
-            }
-            i = k;
-        }
-    }
-}
+// template <typename scalar_t>
+// std::vector<int> partition(torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> solution, int n, int b) {
+//     const scalar_t eps = 1.0e-9;
+// 
+//     if (n == 0) {
+//         return std::vector<int>();
+//     }
+// 
+//     std::vector<int> sizes{1};
+//     
+//     for (int i = 1; i < n; i++) {
+//         if (std::abs(solution[b][i] - solution[b][i - 1]) > eps) {
+//             sizes.push_back(0);
+//         }
+//         sizes[sizes.size() - 1] += 1;
+//     }
+//     return sizes;
+// }
 
 
-template <typename scalar_t>
-void isotonic_l2_backward_kernel(
-    torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> s, // not used
-    torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> sol,
-    torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> grad_input,
-    torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> ret,
-    int n,
-    int batch) {
+// template <typename scalar_t>
+// __global__ void isotonic_l2_kernel(
+//     torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> s,
+//     torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> sol,
+//     torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> sums,
+//     torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> target,
+//     torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> c,
+//     int n,
+//     int batch) {
+// 
+//     printf("isotonic_l2_kernel block %d, thread %d\n", blockIdx.x, threadIdx.x);
+//     const int b = blockIdx.x;
+// 
+//     if (b >= batch) {
+//         // block out of bounds
+//         return;
+//     }
+// 
+//     // target describes a list of blocks.  at any time, if [i..j] (inclusive) is
+//     // an active block, then target[i] := j and target[j] := i.
+//     for (int i = 0; i < n; i++) {
+//         c[b][i] = 1.0;
+//         sol[b][i] = s[b][i];
+//         sums[b][i] = s[b][i];
+//         target[b][i] = i;
+//     }
+// 
+//     int i = 0;
+//     while (i < n) {
+//         auto k = target[b][i] + 1;
+//         if (k == n) {
+//             break;
+//         }
+//         if (sol[b][i] > sol[b][k]) {
+//             i = k;
+//             continue;
+//         }
+//         auto sum_y = sums[b][i];
+//         auto sum_c = c[b][i];
+//         while (true) {
+//             // We are within an increasing subsequence
+//             auto prev_y = sol[b][k];
+//             sum_y += sums[b][k];
+//             sum_c += c[b][k];
+//             k = target[b][k] + 1;
+//             if ((k == n) || (prev_y > sol[b][k])) {
+//                 // Non-singleton increasing subsequence is finished,
+//                 // update first entry.
+//                 sol[b][i] = sum_y / sum_c;
+//                 sums[b][i] = sum_y;
+//                 c[b][i] = sum_c;
+//                 target[b][i] = k - 1;
+//                 target[b][k - 1] = i;
+//                 if (i > 0) {
+//                     // Backtrack if we can.  This makes the algorithm
+//                     // single-pass and ensures O(n) complexity.
+//                     i = target[b][i - 1];
+//                 }
+//                 // Otherwise, restart from the same point
+//                 break;
+//             }
+//         }
+//     }
+//     // Reconstruct the solution
+//     i = 0;
+//     while (i < n) {
+//         auto k = target[b][i] + 1;
+//         for (int j = i + 1; j < k; j++) {
+//             sol[b][j] = sol[b][i];
+//         }
+//         i = k;
+//     }
+// }
+// 
+// template <typename scalar_t>
+// __global__ void isotonic_kl_kernel(
+//     torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> y,
+//     torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> w,
+//     torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> sol,
+//     torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> lse_y_,
+//     torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> lse_w_,
+//     torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> target,
+//     int n,
+//     int batch) {
+// 
+//     printf("isotonic_kl_kernel block %d, thread %d\n", blockIdx.x, threadIdx.x);
+//     const int b = blockIdx.x;
+//     
+//     if (b >= batch) {
+//         // block out of bounds
+//         return;
+//     }
+// 
+//     // target describes a list of blocks.  At any time, if [i..j] (inclusive) is
+//     // an active block, then target[i] := j and target[j] := i.
+//     for (int i = 0; i < n; i++) {
+//         sol[b][i] = y[b][i] - w[b][i];
+//         lse_y_[b][i] = y[b][i];
+//         lse_w_[b][i] = w[b][i];
+//         target[b][i] = i;
+//     }
+// 
+//     int i = 0;
+//     while (i < n) {
+//         auto k = target[b][i] + 1;
+//         if (k == n) {
+//             break;
+//         }
+//         if (sol[b][i] > sol[b][k]) {
+//             i = k;
+//             continue;
+//         }
+//         auto lse_y = lse_y_[b][i];
+//         auto lse_w = lse_w_[b][i];
+//         while (true) {
+//             // We are within an increasing subsequence
+//             auto prev_y = sol[b][k];
+//             lse_y = log_add_exp(lse_y, lse_y_[b][k]);
+//             lse_w = log_add_exp(lse_w, lse_w_[b][k]);
+//             k = target[b][k] + 1;
+//             if ((k == n) || (prev_y > sol[b][k])) {
+//                 // Non-singleton increasing subsequence is finished,
+//                 // update first entry.
+//                 sol[b][i] = lse_y - lse_w;
+//                 lse_y_[b][i] = lse_y;
+//                 lse_w_[b][i] = lse_w;
+//                 target[b][i] = k - 1;
+//                 target[b][k - 1] = i;
+//                 if (i > 0) {
+//                     // Backtrack if we can.  This makes the algorithm
+//                     // single-pass and ensures O(n) complexity.
+//                     i = target[b][i - 1];
+//                 }
+//                 // Otherwise, restart from the same point
+//                 break;
+//             }
+//         }
+//     }
+//     // Reconstruct the solution
+//     i = 0;
+//     while (i < n) {
+//         auto k = target[b][i] + 1;
+//         for (int j = i + 1; j < k; j++) {
+//             sol[b][j] = sol[b][i];
+//         }
+//         i = k;
+//     }
+// }
 
-    int end;
-    scalar_t sum;
-    scalar_t val;
 
-    #pragma omp parellel for
-    for (int b = 0; b < batch; b++) {
-        int start = 0;
-        for (int size: partition(sol, n, b)) {
-            end = start + size;
-            sum = 0;
-            val = 1.0 / (scalar_t) size;
-            
-            for (int i = start; i < end; i++) {
-                sum += grad_input[b][i];
-            }
-            for (int i = start; i < end; i++) {
-                ret[b][i] = val * sum;
-            }
-            start = end;
-        }
-    }
-}
-
-template <typename scalar_t>
-void isotonic_kl_backward_kernel(
-    torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> s,
-    torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> sol,
-    torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> grad_input,
-    torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> ret,
-    int n,
-    int batch) {
-
-    int end;
-    scalar_t sum;
-    scalar_t softmax;
-
-    #pragma omp parellel for
-    for (int b = 0; b < batch; b++) {
-        int start = 0;
-        for (int size: partition(sol, n, b)) {
-            end = start + size;
-            sum = 0;
-            softmax = 0;
-            
-            for (int i = start; i < end; i++) {
-                softmax += std::exp(s[b][i]);
-                sum += grad_input[b][i];
-            }
-            for (int i = start; i < end; i++) {
-                ret[b][i] = std::exp(s[b][i]) / softmax * sum;
-            }
-            start = end;
-        }
-    }
-}
+// template <typename scalar_t>
+// __global__ void isotonic_l2_backward_kernel(
+//     torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> s, // not used
+//     torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> sol,
+//     torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> grad_input,
+//     torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> ret,
+//     int n,
+//     int batch) {
+// 
+//     int end;
+//     scalar_t sum;
+//     scalar_t val;
+//     const int b = blockIdx.x;
+// 
+//     int start = 0;
+//     for (int size: partition(sol, n, b)) {
+//         end = start + size;
+//         sum = 0;
+//         val = 1.0 / (scalar_t) size;
+//         
+//         for (int i = start; i < end; i++) {
+//             sum += grad_input[b][i];
+//         }
+//         for (int i = start; i < end; i++) {
+//             ret[b][i] = val * sum;
+//         }
+//         start = end;
+//     }
+// }
+// 
+// template <typename scalar_t>
+// __global__ void isotonic_kl_backward_kernel(
+//     torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> s,
+//     torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> sol,
+//     torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> grad_input,
+//     torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> ret,
+//     int n,
+//     int batch) {
+// 
+//     int end;
+//     scalar_t sum;
+//     scalar_t softmax;
+//     const int b = blockIdx.x;
+// 
+//     int start = 0;
+//     for (int size: partition(sol, n, b)) {
+//         end = start + size;
+//         sum = 0;
+//         softmax = 0;
+//         
+//         for (int i = start; i < end; i++) {
+//             softmax += std::exp(s[b][i]);
+//             sum += grad_input[b][i];
+//         }
+//         for (int i = start; i < end; i++) {
+//             ret[b][i] = std::exp(s[b][i]) / softmax * sum;
+//         }
+//         start = end;
+//     }
+// }
+// } // namespace
 
 // Solves an isotonic regression problem using PAV.
 // Formally, it solves argmin_{v_1 >= ... >= v_n} 0.5 ||v - y||^2.
-torch::Tensor isotonic_l2(torch::Tensor y) {
-    auto batch = y.size(0);
-    auto n = y.size(1);
-    auto sol = torch::zeros_like(y);
-    auto sums = torch::zeros_like(y);
-    auto target = torch::zeros_like(y);
-    auto c = torch::zeros_like(y);
+void isotonic_l2(torch::Tensor y) {
 
-    AT_DISPATCH_FLOATING_TYPES(y.scalar_type(), "isotonic_l2", ([&] {
-        isotonic_l2_kernel<scalar_t>(
-            y.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
-            sol.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
-            sums.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
-            target.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
-            c.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
-            n,
-            batch);
-    }));
-    return sol;
+    // std::cout << "FUCK ME" << "\n";
+    // auto batch = y.size(0);
+    // auto n = y.size(1);
+    // auto sol = torch::zeros_like(y);
+    // auto sums = torch::zeros_like(y);
+    // auto target = torch::zeros_like(y);
+    // auto c = torch::zeros_like(y);
+
+
+    // const int threads = 1024;
+    // const dim3 blocks((batch + threads - 1) / threads);
+
+    // AT_DISPATCH_FLOATING_TYPES(y.scalar_type(), "isotonic_l2", ([&] {
+    //     isotonic_l2_kernel<scalar_t><<<blocks, threads>>>(
+    //         y.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
+    //         sol.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
+    //         sums.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
+    //         target.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
+    //         c.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
+    //         n,
+    //         batch);
+    // }));
+    // return sol;
 }
 
 // Solves isotonic optimization with KL divergence using PAV.
 // Formally, it solves argmin_{v_1 >= ... >= v_n} <e^{y-v}, 1> + <e^w, v>.
-torch::Tensor isotonic_kl(torch::Tensor y, torch::Tensor w) {
-    auto batch = y.size(0);
-    auto n = y.size(1);
-    auto sol = torch::zeros_like(y);
-    auto lse_y_ = torch::zeros_like(y);
-    auto lse_w_ = torch::zeros_like(y);
-    auto target = torch::zeros_like(y);
+// torch::Tensor isotonic_kl(torch::Tensor y, torch::Tensor w) {
+//     auto batch = y.size(0);
+//     auto n = y.size(1);
+//     auto sol = torch::zeros_like(y);
+//     auto lse_y_ = torch::zeros_like(y);
+//     auto lse_w_ = torch::zeros_like(y);
+//     auto target = torch::zeros_like(y);
+// 
+//     const int threads = 1024;
+//     const dim3 blocks((batch + threads - 1) / threads);
+// 
+//     AT_DISPATCH_FLOATING_TYPES(y.scalar_type(), "isotonic_kl", ([&] {
+//         isotonic_kl_kernel<scalar_t><<<blocks, threads>>>(
+//             y.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
+//             w.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
+//             sol.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
+//             lse_y_.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
+//             lse_w_.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
+//             target.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
+//             n,
+//             batch);
+//     }));
+//     return sol;
+// }
 
-    AT_DISPATCH_FLOATING_TYPES(y.scalar_type(), "isotonic_kl", ([&] {
-        isotonic_kl_kernel<scalar_t>(
-            y.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
-            w.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
-            sol.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
-            lse_y_.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
-            lse_w_.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
-            target.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
-            n,
-            batch);
-    }));
-    return sol;
-}
-
-torch::Tensor isotonic_l2_backward(torch::Tensor s, torch::Tensor sol, torch::Tensor grad_input) {
-    auto batch = sol.size(0);
-    auto n = sol.size(1);
-    auto ret = torch::zeros_like(sol);
-
-    AT_DISPATCH_FLOATING_TYPES(sol.scalar_type(), "isotonic_l2_backward", ([&] {
-        isotonic_l2_backward_kernel<scalar_t>(
-            s.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
-            sol.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
-            grad_input.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
-            ret.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
-            n,
-            batch);
-    }));
-    return ret;
-}
-
-torch::Tensor isotonic_kl_backward(torch::Tensor s, torch::Tensor sol, torch::Tensor grad_input) {
-    auto batch = sol.size(0);
-    auto n = sol.size(1);
-    auto ret = torch::zeros_like(sol);
-
-    AT_DISPATCH_FLOATING_TYPES(sol.scalar_type(), "isotonic_kl_backward", ([&] {
-        isotonic_kl_backward_kernel<scalar_t>(
-            s.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
-            sol.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
-            grad_input.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
-            ret.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
-            n,
-            batch);
-    }));
-    return ret;
-}
+// torch::Tensor isotonic_l2_backward(torch::Tensor s, torch::Tensor sol, torch::Tensor grad_input) {
+//     auto batch = sol.size(0);
+//     auto n = sol.size(1);
+//     auto ret = torch::zeros_like(sol);
+// 
+//     const int threads = 1024;
+//     const dim3 blocks(batch);
+// 
+//     AT_DISPATCH_FLOATING_TYPES(sol.scalar_type(), "isotonic_l2_backward", ([&] {
+//         isotonic_l2_backward_kernel<scalar_t><<<blocks, threads>>>(
+//             s.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
+//             sol.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
+//             grad_input.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
+//             ret.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
+//             n,
+//             batch);
+//     }));
+//     return ret;
+// }
+// 
+// torch::Tensor isotonic_kl_backward(torch::Tensor s, torch::Tensor sol, torch::Tensor grad_input) {
+//     auto batch = sol.size(0);
+//     auto n = sol.size(1);
+//     auto ret = torch::zeros_like(sol);
+// 
+//     const int threads = 1024;
+//     const dim3 blocks(batch);
+// 
+//     AT_DISPATCH_FLOATING_TYPES(sol.scalar_type(), "isotonic_kl_backward", ([&] {
+//         isotonic_kl_backward_kernel<scalar_t><<<blocks, threads>>>(
+//             s.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
+//             sol.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
+//             grad_input.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
+//             ret.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
+//             n,
+//             batch);
+//     }));
+//     return ret;
+// }
 
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("isotonic_l2", &isotonic_l2, "Isotonic L2");
-  m.def("isotonic_l2_backward", &isotonic_l2_backward, "Isotonic L2 Backward");
-  m.def("isotonic_kl", &isotonic_kl, "Isotonic KL");
-  m.def("isotonic_kl_backward", &isotonic_kl_backward, "Isotonic KL Backward");
+  // m.def("isotonic_l2_backward", &isotonic_l2_backward, "Isotonic L2 Backward");
+  // m.def("isotonic_kl", &isotonic_kl, "Isotonic KL");
+  // m.def("isotonic_kl_backward", &isotonic_kl_backward, "Isotonic KL Backward");
 }
