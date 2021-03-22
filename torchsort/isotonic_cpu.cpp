@@ -83,7 +83,7 @@ void isotonic_l2_kernel(
     int n,
     int batch) {
 
-    #pragma omp parallel for
+    // #pragma omp parallel for
     for (int b = 0; b < batch; b++) {
         // target describes a list of blocks.  at any time, if [i..j] (inclusive) is
         // an active block, then target[i] := j and target[j] := i.
@@ -153,7 +153,7 @@ void isotonic_kl_kernel(
     int n,
     int batch) {
 
-    #pragma omp parallel for
+    // #pragma omp parallel for
     for (int b = 0; b < batch; b++) {
         // target describes a list of blocks.  At any time, if [i..j] (inclusive) is
         // an active block, then target[i] := j and target[j] := i.
@@ -226,7 +226,7 @@ void isotonic_l2_backward_kernel(
     scalar_t sum;
     scalar_t val;
 
-    #pragma omp parallel for
+    // #pragma omp parallel for
     for (int b = 0; b < batch; b++) {
         int start = 0;
         for (int size: partition(sol[b], n)) {
@@ -258,7 +258,7 @@ void isotonic_kl_backward_kernel(
     scalar_t sum;
     scalar_t softmax;
 
-    #pragma omp parallel for
+    // #pragma omp parallel for
     for (int b = 0; b < batch; b++) {
         int start = 0;
         for (int size: partition(sol[b], n)) {
