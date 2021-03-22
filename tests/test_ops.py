@@ -2,12 +2,15 @@ from functools import partial
 
 import pytest
 import torch
+from fast_soft_sort import pytorch_ops as fss
 
 from torchsort import soft_rank, soft_sort
 
 EPS = 1e-5
 ATOL = 1e-3
 RTOL = 1e-3
+BATCH_SIZE = 8
+SEQ_LEN = 10
 
 REGULARIZATION = ["l2", "kl"]
 REGULARIZATION_STRENGTH = [1e-1, 1e0, 1e1]
@@ -19,10 +22,30 @@ torch.manual_seed(0)
 @pytest.mark.parametrize("regularization", REGULARIZATION)
 @pytest.mark.parametrize("regularization_strength", REGULARIZATION_STRENGTH)
 def test_gradcheck(function, regularization, regularization_strength):
-    x = torch.randn(8, 10, dtype=torch.float64, requires_grad=True)
+    x = torch.randn(BATCH_SIZE, SEQ_LEN, dtype=torch.float64, requires_grad=True)
     f = partial(
         function,
         regularization=regularization,
         regularization_strength=regularization_strength,
     )
     torch.autograd.gradcheck(f, [x], eps=EPS, atol=ATOL, rtol=RTOL)
+
+
+@pytest.mark.parametrize(
+    "funcs",
+    [(soft_rank, fss.soft_rank), (soft_sort, fss.soft_sort)],
+)
+@pytest.mark.parametrize("regularization", REGULARIZATION)
+@pytest.mark.parametrize("regularization_strength", REGULARIZATION_STRENGTH)
+def test_vs_original(funcs, regularization, regularization_strength):
+    # test that torchsort outputs are consistent with the outputs of the code provided
+    # from the original paper
+    x = torch.randn(BATCH_SIZE, SEQ_LEN, dtype=torch.float64, requires_grad=True)
+    kwargs = {
+        "regularization": regularization,
+        "regularization_strength": regularization_strength,
+    }
+    assert torch.allclose(
+        funcs[0](x, **kwargs),
+        funcs[1](x, **kwargs),
+    )
