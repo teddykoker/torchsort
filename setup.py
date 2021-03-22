@@ -32,7 +32,9 @@ setup(
     },
     ext_modules=[
         cpp_extension.CppExtension(
-            "torchsort.isotonic_cpu", ["torchsort/isotonic_cpu.cpp"]
+            "torchsort.isotonic_cpu",
+            sources=["torchsort/isotonic_cpu.cpp"],
+            extra_compile_args=["-fopenmp", "-ffast-math"],
         ),
     ],
     cmdclass={"build_ext": cpp_extension.BuildExtension},

@@ -1,9 +1,9 @@
 import sys
-from timeit import timeit
 from collections import defaultdict
+from timeit import timeit
 
-import torch
 import matplotlib.pyplot as plt
+import torch
 
 import torchsort
 
