@@ -75,193 +75,214 @@ std::vector<int> partition(torch::TensorAccessor<scalar_t, 1> solution, int n) {
 
 template <typename scalar_t>
 void isotonic_l2_kernel(
-    torch::TensorAccessor<scalar_t, 1> s,
-    torch::TensorAccessor<scalar_t, 1> sol,
-    torch::TensorAccessor<scalar_t, 1> sums,
-    torch::TensorAccessor<scalar_t, 1> target,
-    torch::TensorAccessor<scalar_t, 1> c,
-    int n) {
-    // target describes a list of blocks.  at any time, if [i..j] (inclusive) is
-    // an active block, then target[i] := j and target[j] := i.
-    for (int i = 0; i < n; i++) {
-        c[i] = 1.0;
-        sol[i] = s[i];
-        sums[i] = s[i];
-        target[i] = i;
-    }
+    torch::TensorAccessor<scalar_t, 2> s,
+    torch::TensorAccessor<scalar_t, 2> sol,
+    torch::TensorAccessor<scalar_t, 2> sums,
+    torch::TensorAccessor<scalar_t, 2> target,
+    torch::TensorAccessor<scalar_t, 2> c,
+    int n,
+    int batch) {
 
-    int i = 0;
-    while (i < n) {
-        auto k = target[i] + 1;
-        if (k == n) {
-            break;
+    #pragma omp parellel for
+    for (int b = 0; b < batch; b++) {
+        // target describes a list of blocks.  at any time, if [i..j] (inclusive) is
+        // an active block, then target[i] := j and target[j] := i.
+        for (int i = 0; i < n; i++) {
+            c[b][i] = 1.0;
+            sol[b][i] = s[b][i];
+            sums[b][i] = s[b][i];
+            target[b][i] = i;
         }
-        if (sol[i] > sol[k]) {
-            i = k;
-            continue;
-        }
-        auto sum_y = sums[i];
-        auto sum_c = c[i];
-        while (true) {
-            // We are within an increasing subsequence
-            auto prev_y = sol[k];
-            sum_y += sums[k];
-            sum_c += c[k];
-            k = target[k] + 1;
-            if ((k == n) || (prev_y > sol[k])) {
-                // Non-singleton increasing subsequence is finished,
-                // update first entry.
-                sol[i] = sum_y / sum_c;
-                sums[i] = sum_y;
-                c[i] = sum_c;
-                target[i] = k - 1;
-                target[k - 1] = i;
-                if (i > 0) {
-                    // Backtrack if we can.  This makes the algorithm
-                    // single-pass and ensures O(n) complexity.
-                    i = target[i - 1];
-                }
-                // Otherwise, restart from the same point
+
+        int i = 0;
+        while (i < n) {
+            auto k = target[b][i] + 1;
+            if (k == n) {
                 break;
             }
+            if (sol[b][i] > sol[b][k]) {
+                i = k;
+                continue;
+            }
+            auto sum_y = sums[b][i];
+            auto sum_c = c[b][i];
+            while (true) {
+                // We are within an increasing subsequence
+                auto prev_y = sol[b][k];
+                sum_y += sums[b][k];
+                sum_c += c[b][k];
+                k = target[b][k] + 1;
+                if ((k == n) || (prev_y > sol[b][k])) {
+                    // Non-singleton increasing subsequence is finished,
+                    // update first entry.
+                    sol[b][i] = sum_y / sum_c;
+                    sums[b][i] = sum_y;
+                    c[b][i] = sum_c;
+                    target[b][i] = k - 1;
+                    target[b][k - 1] = i;
+                    if (i > 0) {
+                        // Backtrack if we can.  This makes the algorithm
+                        // single-pass and ensures O(n) complexity.
+                        i = target[b][i - 1];
+                    }
+                    // Otherwise, restart from the same point
+                    break;
+                }
+            }
         }
-    }
-    // Reconstruct the solution
-    i = 0;
-    while (i < n) {
-        auto k = target[i] + 1;
-        for (int j = i + 1; j < k; j++) {
-            sol[j] = sol[i];
+        // Reconstruct the solution
+        i = 0;
+        while (i < n) {
+            auto k = target[b][i] + 1;
+            for (int j = i + 1; j < k; j++) {
+                sol[b][j] = sol[b][i];
+            }
+            i = k;
         }
-        i = k;
     }
 }
 
 template <typename scalar_t>
 void isotonic_kl_kernel(
-    torch::TensorAccessor<scalar_t, 1> y,
-    torch::TensorAccessor<scalar_t, 1> w,
-    torch::TensorAccessor<scalar_t, 1> sol,
-    torch::TensorAccessor<scalar_t, 1> lse_y_,
-    torch::TensorAccessor<scalar_t, 1> lse_w_,
-    torch::TensorAccessor<scalar_t, 1> target,
-    int n) {
-    // target describes a list of blocks.  At any time, if [i..j] (inclusive) is
-    // an active block, then target[i] := j and target[j] := i.
-    for (int i = 0; i < n; i++) {
-        sol[i] = y[i] - w[i];
-        lse_y_[i] = y[i];
-        lse_w_[i] = w[i];
-        target[i] = i;
-    }
+    torch::TensorAccessor<scalar_t, 2> y,
+    torch::TensorAccessor<scalar_t, 2> w,
+    torch::TensorAccessor<scalar_t, 2> sol,
+    torch::TensorAccessor<scalar_t, 2> lse_y_,
+    torch::TensorAccessor<scalar_t, 2> lse_w_,
+    torch::TensorAccessor<scalar_t, 2> target,
+    int n,
+    int batch) {
 
-    int i = 0;
-    while (i < n) {
-        auto k = target[i] + 1;
-        if (k == n) {
-            break;
+    #pragma omp parellel for
+    for (int b = 0; b < batch; b++) {
+        // target describes a list of blocks.  At any time, if [i..j] (inclusive) is
+        // an active block, then target[i] := j and target[j] := i.
+        for (int i = 0; i < n; i++) {
+            sol[b][i] = y[b][i] - w[b][i];
+            lse_y_[b][i] = y[b][i];
+            lse_w_[b][i] = w[b][i];
+            target[b][i] = i;
         }
-        if (sol[i] > sol[k]) {
-            i = k;
-            continue;
-        }
-        auto lse_y = lse_y_[i];
-        auto lse_w = lse_w_[i];
-        while (true) {
-            // We are within an increasing subsequence
-            auto prev_y = sol[k];
-            lse_y = log_add_exp(lse_y, lse_y_[k]);
-            lse_w = log_add_exp(lse_w, lse_w_[k]);
-            k = target[k] + 1;
-            if ((k == n) || (prev_y > sol[k])) {
-                // Non-singleton increasing subsequence is finished,
-                // update first entry.
-                sol[i] = lse_y - lse_w;
-                lse_y_[i] = lse_y;
-                lse_w_[i] = lse_w;
-                target[i] = k - 1;
-                target[k - 1] = i;
-                if (i > 0) {
-                    // Backtrack if we can.  This makes the algorithm
-                    // single-pass and ensures O(n) complexity.
-                    i = target[i - 1];
-                }
-                // Otherwise, restart from the same point
+
+        int i = 0;
+        while (i < n) {
+            auto k = target[b][i] + 1;
+            if (k == n) {
                 break;
             }
+            if (sol[b][i] > sol[b][k]) {
+                i = k;
+                continue;
+            }
+            auto lse_y = lse_y_[b][i];
+            auto lse_w = lse_w_[b][i];
+            while (true) {
+                // We are within an increasing subsequence
+                auto prev_y = sol[b][k];
+                lse_y = log_add_exp(lse_y, lse_y_[b][k]);
+                lse_w = log_add_exp(lse_w, lse_w_[b][k]);
+                k = target[b][k] + 1;
+                if ((k == n) || (prev_y > sol[b][k])) {
+                    // Non-singleton increasing subsequence is finished,
+                    // update first entry.
+                    sol[b][i] = lse_y - lse_w;
+                    lse_y_[b][i] = lse_y;
+                    lse_w_[b][i] = lse_w;
+                    target[b][i] = k - 1;
+                    target[b][k - 1] = i;
+                    if (i > 0) {
+                        // Backtrack if we can.  This makes the algorithm
+                        // single-pass and ensures O(n) complexity.
+                        i = target[b][i - 1];
+                    }
+                    // Otherwise, restart from the same point
+                    break;
+                }
+            }
         }
-    }
-    // Reconstruct the solution
-    i = 0;
-    while (i < n) {
-        auto k = target[i] + 1;
-        for (int j = i + 1; j < k; j++) {
-            sol[j] = sol[i];
+        // Reconstruct the solution
+        i = 0;
+        while (i < n) {
+            auto k = target[b][i] + 1;
+            for (int j = i + 1; j < k; j++) {
+                sol[b][j] = sol[b][i];
+            }
+            i = k;
         }
-        i = k;
     }
 }
 
 
 template <typename scalar_t>
 void isotonic_l2_backward_kernel(
-    torch::TensorAccessor<scalar_t, 1> s, // not used
-    torch::TensorAccessor<scalar_t, 1> sol,
-    torch::TensorAccessor<scalar_t, 1> grad_input,
-    torch::TensorAccessor<scalar_t, 1> ret,
-    int n) {
+    torch::TensorAccessor<scalar_t, 2> s, // not used
+    torch::TensorAccessor<scalar_t, 2> sol,
+    torch::TensorAccessor<scalar_t, 2> grad_input,
+    torch::TensorAccessor<scalar_t, 2> ret,
+    int n,
+    int batch) {
+
     int end;
-    int start = 0;
     scalar_t sum;
     scalar_t val;
 
-    for (int size: partition(sol, n)) {
-        end = start + size;
-        sum = 0;
-        val = 1.0 / (scalar_t) size;
-        
-        for (int i = start; i < end; i++) {
-            sum += grad_input[i];
+    #pragma omp parellel for
+    for (int b = 0; b < batch; b++) {
+        int start = 0;
+        for (int size: partition(sol[b], n)) {
+            end = start + size;
+            sum = 0;
+            val = 1.0 / (scalar_t) size;
+            
+            for (int i = start; i < end; i++) {
+                sum += grad_input[b][i];
+            }
+            for (int i = start; i < end; i++) {
+                ret[b][i] = val * sum;
+            }
+            start = end;
         }
-        for (int i = start; i < end; i++) {
-            ret[i] = val * sum;
-        }
-        start = end;
     }
 }
 
 template <typename scalar_t>
 void isotonic_kl_backward_kernel(
-    torch::TensorAccessor<scalar_t, 1> s,
-    torch::TensorAccessor<scalar_t, 1> sol,
-    torch::TensorAccessor<scalar_t, 1> grad_input,
-    torch::TensorAccessor<scalar_t, 1> ret,
-    int n) {
+    torch::TensorAccessor<scalar_t, 2> s,
+    torch::TensorAccessor<scalar_t, 2> sol,
+    torch::TensorAccessor<scalar_t, 2> grad_input,
+    torch::TensorAccessor<scalar_t, 2> ret,
+    int n,
+    int batch) {
+
     int end;
-    int start = 0;
     scalar_t sum;
     scalar_t softmax;
 
-    for (int size: partition(sol, n)) {
-        end = start + size;
-        sum = 0;
-        softmax = 0;
-        
-        for (int i = start; i < end; i++) {
-            softmax += std::exp(s[i]);
-            sum += grad_input[i];
+    #pragma omp parellel for
+    for (int b = 0; b < batch; b++) {
+        int start = 0;
+        for (int size: partition(sol[b], n)) {
+            end = start + size;
+            sum = 0;
+            softmax = 0;
+            
+            for (int i = start; i < end; i++) {
+                softmax += std::exp(s[b][i]);
+                sum += grad_input[b][i];
+            }
+            for (int i = start; i < end; i++) {
+                ret[b][i] = std::exp(s[b][i]) / softmax * sum;
+            }
+            start = end;
         }
-        for (int i = start; i < end; i++) {
-            ret[i] = std::exp(s[i]) / softmax * sum;
-        }
-        start = end;
     }
 }
 
 // Solves an isotonic regression problem using PAV.
 // Formally, it solves argmin_{v_1 >= ... >= v_n} 0.5 ||v - y||^2.
 torch::Tensor isotonic_l2(torch::Tensor y) {
-    auto n = y.size(0);
+    auto batch = y.size(0);
+    auto n = y.size(1);
     auto sol = torch::zeros_like(y);
     auto sums = torch::zeros_like(y);
     auto target = torch::zeros_like(y);
@@ -269,12 +290,13 @@ torch::Tensor isotonic_l2(torch::Tensor y) {
 
     AT_DISPATCH_FLOATING_TYPES(y.scalar_type(), "isotonic_l2", ([&] {
         isotonic_l2_kernel<scalar_t>(
-            y.accessor<scalar_t, 1>(),
-            sol.accessor<scalar_t, 1>(),
-            sums.accessor<scalar_t, 1>(),
-            target.accessor<scalar_t, 1>(),
-            c.accessor<scalar_t, 1>(),
-            n);
+            y.accessor<scalar_t, 2>(),
+            sol.accessor<scalar_t, 2>(),
+            sums.accessor<scalar_t, 2>(),
+            target.accessor<scalar_t, 2>(),
+            c.accessor<scalar_t, 2>(),
+            n,
+            batch);
     }));
     return sol;
 }
@@ -282,7 +304,8 @@ torch::Tensor isotonic_l2(torch::Tensor y) {
 // Solves isotonic optimization with KL divergence using PAV.
 // Formally, it solves argmin_{v_1 >= ... >= v_n} <e^{y-v}, 1> + <e^w, v>.
 torch::Tensor isotonic_kl(torch::Tensor y, torch::Tensor w) {
-    auto n = y.size(0);
+    auto batch = y.size(0);
+    auto n = y.size(1);
     auto sol = torch::zeros_like(y);
     auto lse_y_ = torch::zeros_like(y);
     auto lse_w_ = torch::zeros_like(y);
@@ -290,43 +313,48 @@ torch::Tensor isotonic_kl(torch::Tensor y, torch::Tensor w) {
 
     AT_DISPATCH_FLOATING_TYPES(y.scalar_type(), "isotonic_kl", ([&] {
         isotonic_kl_kernel<scalar_t>(
-            y.accessor<scalar_t, 1>(),
-            w.accessor<scalar_t, 1>(),
-            sol.accessor<scalar_t, 1>(),
-            lse_y_.accessor<scalar_t, 1>(),
-            lse_w_.accessor<scalar_t, 1>(),
-            target.accessor<scalar_t, 1>(),
-            n);
+            y.accessor<scalar_t, 2>(),
+            w.accessor<scalar_t, 2>(),
+            sol.accessor<scalar_t, 2>(),
+            lse_y_.accessor<scalar_t, 2>(),
+            lse_w_.accessor<scalar_t, 2>(),
+            target.accessor<scalar_t, 2>(),
+            n,
+            batch);
     }));
     return sol;
 }
 
 torch::Tensor isotonic_l2_backward(torch::Tensor s, torch::Tensor sol, torch::Tensor grad_input) {
-    auto n = sol.size(0);
+    auto batch = sol.size(0);
+    auto n = sol.size(1);
     auto ret = torch::zeros_like(sol);
 
     AT_DISPATCH_FLOATING_TYPES(sol.scalar_type(), "isotonic_l2_backward", ([&] {
         isotonic_l2_backward_kernel<scalar_t>(
-            s.accessor<scalar_t, 1>(),
-            sol.accessor<scalar_t, 1>(),
-            grad_input.accessor<scalar_t, 1>(),
-            ret.accessor<scalar_t, 1>(),
-            n);
+            s.accessor<scalar_t, 2>(),
+            sol.accessor<scalar_t, 2>(),
+            grad_input.accessor<scalar_t, 2>(),
+            ret.accessor<scalar_t, 2>(),
+            n,
+            batch);
     }));
     return ret;
 }
 
 torch::Tensor isotonic_kl_backward(torch::Tensor s, torch::Tensor sol, torch::Tensor grad_input) {
-    auto n = sol.size(0);
+    auto batch = sol.size(0);
+    auto n = sol.size(1);
     auto ret = torch::zeros_like(sol);
 
     AT_DISPATCH_FLOATING_TYPES(sol.scalar_type(), "isotonic_kl_backward", ([&] {
         isotonic_kl_backward_kernel<scalar_t>(
-            s.accessor<scalar_t, 1>(),
-            sol.accessor<scalar_t, 1>(),
-            grad_input.accessor<scalar_t, 1>(),
-            ret.accessor<scalar_t, 1>(),
-            n);
+            s.accessor<scalar_t, 2>(),
+            sol.accessor<scalar_t, 2>(),
+            grad_input.accessor<scalar_t, 2>(),
+            ret.accessor<scalar_t, 2>(),
+            n,
+            batch);
     }));
     return ret;
 }
