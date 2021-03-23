@@ -63,7 +63,11 @@ __device__ void partition(
     int b) {
 
     const scalar_t eps = 1.0e-9;
-    int tail = 0;
+    int tail = 1;
+
+    if (n > 0) {
+        sizes[b][0] = 1;
+    }
 
     for (int i = 1; i < n; i++) {
         if (std::abs(solution[b][i] - solution[b][i - 1]) > eps) {
@@ -228,10 +232,10 @@ __global__ void isotonic_l2_backward_kernel(
     for (int b = 0; b < batch; b++) {
         int start = 0;
         partition(sol, sizes, n, b);
-        for (int size = 0; sizes[b][size] > 0; size++) {
+        for (int size = 0; (sizes[b][size] > 0 && size < n); size++) {
             end = start + sizes[b][size];
             sum = 0;
-            val = 1.0 / (scalar_t) size;
+            val = 1.0 / (scalar_t) sizes[b][size];
             
             for (int i = start; i < end; i++) {
                 sum += grad_input[b][i];
@@ -261,7 +265,7 @@ __global__ void isotonic_kl_backward_kernel(
     for (int b = 0; b < batch; b++) {
         int start = 0;
         partition(sol, sizes, n, b);
-        for (int size = 0; sizes[b][size] > 0; size++) {
+        for (int size = 0; (sizes[b][size] > 0 && size < n); size++) {
             end = start + sizes[b][size];
             sum = 0;
             softmax = 0;
@@ -288,6 +292,7 @@ torch::Tensor isotonic_l2(torch::Tensor y) {
     auto target = torch::zeros_like(y);
     auto c = torch::zeros_like(y);
 
+    // TODO parallelize
     const int threads = 1;
     const int blocks = 1;
 
@@ -314,6 +319,7 @@ torch::Tensor isotonic_kl(torch::Tensor y, torch::Tensor w) {
     auto lse_w_ = torch::zeros_like(y);
     auto target = torch::zeros_like(y);
 
+    // TODO parallelize
     const int threads = 1;
     const int blocks = 1;
 
@@ -337,6 +343,7 @@ torch::Tensor isotonic_l2_backward(torch::Tensor s, torch::Tensor sol, torch::Te
     auto ret = torch::zeros_like(sol);
     auto sizes = torch::zeros_like(sol);
 
+    // TODO parallelize
     const int threads = 1;
     const int blocks = 1;
 
@@ -359,6 +366,7 @@ torch::Tensor isotonic_kl_backward(torch::Tensor s, torch::Tensor sol, torch::Te
     auto ret = torch::zeros_like(sol);
     auto sizes = torch::zeros_like(sol);
 
+    // TODO parallelize
     const int threads = 1;
     const int blocks = 1;
 
