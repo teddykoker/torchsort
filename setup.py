@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 import os
+import sys
 from functools import lru_cache
 from subprocess import DEVNULL, call
-import sys
 
 from setuptools import setup
 from torch.utils import cpp_extension

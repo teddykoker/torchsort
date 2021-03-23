@@ -31,6 +31,7 @@ except ImportError:
     isotonic_l2_backward_cuda = None
     isotonic_kl_backward_cuda = None
 
+
 def soft_rank(values, regularization="l2", regularization_strength=1.0):
     if len(values.shape) != 2:
         raise ValueError(f"'values' should be a 2d-tensor but got {values.shape}")
