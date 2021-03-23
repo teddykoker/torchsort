@@ -50,7 +50,7 @@ with open("README.md") as f:
 
 setup(
     name="torchsort",
-    version="0.0.7",
+    version="0.1.0",
     description="Differentiable sorting and ranking in PyTorch",
     author="Teddy Koker",
     url="https://github.com/teddykoker/torchsort",
