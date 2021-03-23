@@ -50,6 +50,38 @@ torch.autograd.grad(y[0, 0], x)
 #         device='cuda:0'),)
 ```
 
+## Example
+
+### Spearman's Rank Coefficient
+
+[Spearman's rank
+coefficient](https://en.wikipedia.org/wiki/Spearman%27s_rank_correlation_coefficient)
+is a very useful metric for measuring how monotonically related two variables
+are. We can use Torchsort to create a differentiable Spearman's rank coefficient
+function so that we can optimize a model directly for this metric:
+
+```python
+import torch
+import torchsort
+
+def spearmanr(pred, target, **kw):
+    pred = torchsort.soft_rank(pred, **kw)
+    target = torchsort.soft_rank(target, **kw)
+    pred = pred - pred.mean()
+    pred = pred / pred.norm()
+    target = target - target.mean()
+    target = target / target.norm()
+    return (pred * target).sum()
+
+pred = torch.tensor([[1., 2., 3., 4., 5.]], requires_grad=True)
+target = torch.tensor([[5., 6., 7., 8., 7.]])
+spearman = spearmanr(pred, target)
+# tensor(0.8321)
+
+torch.autograd.grad(spearman, pred)
+# (tensor([[-5.5470e-02,  2.9802e-09,  5.5470e-02,  1.1094e-01, -1.1094e-01]]),)
+```
+
 ## Benchmark
 
 ![Benchmark](https://github.com/teddykoker/torchsort/raw/main/extra/benchmark.png)
@@ -70,6 +102,7 @@ The `torchsort` CUDA kernel performs quite well with sequence lengths under
 ~2000, and scales to extremely large batch sizes. In the future the
 CUDA kernel can likely be further optimized to achieve performance closer to that of the
 built in `torch.sort`.
+
 
 ## Reference
 
