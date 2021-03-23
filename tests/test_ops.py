@@ -15,14 +15,21 @@ SEQ_LEN = 10
 REGULARIZATION = ["l2", "kl"]
 REGULARIZATION_STRENGTH = [1e-1, 1e0, 1e1]
 
+DEVICES = (
+    [torch.device("cpu")] + [torch.device("cuda")] if torch.cuda.is_available() else []
+)
+
 torch.manual_seed(0)
 
 
 @pytest.mark.parametrize("function", [soft_rank, soft_sort])
 @pytest.mark.parametrize("regularization", REGULARIZATION)
 @pytest.mark.parametrize("regularization_strength", REGULARIZATION_STRENGTH)
-def test_gradcheck(function, regularization, regularization_strength):
-    x = torch.randn(BATCH_SIZE, SEQ_LEN, dtype=torch.float64, requires_grad=True)
+@pytest.mark.parametrize("device", DEVICES)
+def test_gradcheck(function, regularization, regularization_strength, device):
+    x = torch.randn(BATCH_SIZE, SEQ_LEN, dtype=torch.float64, requires_grad=True).to(
+        device
+    )
     f = partial(
         function,
         regularization=regularization,
@@ -37,15 +44,18 @@ def test_gradcheck(function, regularization, regularization_strength):
 )
 @pytest.mark.parametrize("regularization", REGULARIZATION)
 @pytest.mark.parametrize("regularization_strength", REGULARIZATION_STRENGTH)
-def test_vs_original(funcs, regularization, regularization_strength):
+@pytest.mark.parametrize("device", DEVICES)
+def test_vs_original(funcs, regularization, regularization_strength, device):
     # test that torchsort outputs are consistent with the outputs of the code provided
     # from the original paper
-    x = torch.randn(BATCH_SIZE, SEQ_LEN, dtype=torch.float64, requires_grad=True)
+    x = torch.randn(BATCH_SIZE, SEQ_LEN, dtype=torch.float64, requires_grad=True).to(
+        device
+    )
     kwargs = {
         "regularization": regularization,
         "regularization_strength": regularization_strength,
     }
     assert torch.allclose(
-        funcs[0](x, **kwargs),
-        funcs[1](x, **kwargs),
+        funcs[0](x, **kwargs).cpu(),
+        funcs[1](x.cpu(), **kwargs),
     )

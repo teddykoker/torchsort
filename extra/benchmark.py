@@ -17,7 +17,8 @@ except ImportError:
 
 N = list(range(1, 5_000, 100))
 B = [2 ** i for i in range(9)]
-SAMPLES = 10
+B_CUDA = [2 ** i for i in range(13)]
+SAMPLES = 100
 CONVERT = 1e-6  # convert seconds to micro-seconds
 
 
@@ -42,7 +43,6 @@ def style(name):
 
 def batch_size(ax):
     data = defaultdict(list)
-    jit = False
     for b in B:
         x = torch.randn(b, 100)
         data["torch.sort"].append(time(lambda: torch.sort(x)))
@@ -66,7 +66,6 @@ def batch_size(ax):
 
 def sequence_length(ax):
     data = defaultdict(list)
-    jit = False
     for n in N:
         x = torch.randn(1, n)
         data["torch.sort"].append(time(lambda: torch.sort(x)))
@@ -88,14 +87,61 @@ def sequence_length(ax):
     ax.legend()
 
 
+def batch_size_cuda(ax):
+    data = defaultdict(list)
+    for b in B_CUDA:
+        x = torch.randn(b, 100).cuda()
+        data["torch.sort"].append(time(lambda: torch.sort(x)))
+        data["torchsort"].append(time(lambda: torchsort.soft_sort(x)))
+        x = torch.randn(b, 100, requires_grad=True).cuda()
+        data["torchsort (with backward)"].append(
+            time(lambda: backward(torchsort.soft_sort, x))
+        )
+    for label in data.keys():
+        ax.plot(B_CUDA, data[label], label=label, **style(label))
+    ax.set_xlabel("Batch Size")
+    ax.set_ylabel("Execution Time (μs)")
+    ax.legend()
+
+
+def sequence_length_cuda(ax):
+    data = defaultdict(list)
+    for n in N:
+        x = torch.randn(1, n).cuda()
+        data["torch.sort"].append(time(lambda: torch.sort(x)))
+        data["torchsort"].append(time(lambda: torchsort.soft_sort(x)))
+        x = torch.randn(1, n, requires_grad=True).cuda()
+        data["torchsort (with backward)"].append(
+            time(lambda: backward(torchsort.soft_sort, x))
+        )
+    for label in data.keys():
+        ax.plot(N, data[label], label=label, **style(label))
+    ax.set_xlabel("Sequence Length")
+    ax.set_ylabel("Execution Time (μs)")
+    ax.legend()
+
+
 if __name__ == "__main__":
-    # jit
+    # jit/warmup
     x = torch.randn(1, 10, requires_grad=True)
     backward(torchsort.soft_sort, x)
     backward(fss.soft_sort, x)
+
     fig, (ax1, ax2) = plt.subplots(figsize=(10, 4), ncols=2)
     sequence_length(ax1)
     batch_size(ax2)
     fig.suptitle("Torchsort Benchmark: CPU")
     fig.tight_layout()
     plt.savefig("extra/benchmark.png")
+
+    if torch.cuda.is_available():
+        # warmup
+        x = torch.randn(1, 10, requires_grad=True).cuda()
+        backward(torchsort.soft_sort, x)
+
+        fig, (ax1, ax2) = plt.subplots(figsize=(10, 4), ncols=2)
+        sequence_length_cuda(ax1)
+        batch_size_cuda(ax2)
+        fig.suptitle("Torchsort Benchmark: CUDA")
+        fig.tight_layout()
+        plt.savefig("extra/benchmark_cuda.png")
