@@ -87,61 +87,67 @@ __global__ void isotonic_l2_kernel(
     torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> c,
     int n,
     int batch) {
-    for (int b = 0; b < batch; b++) {
-        // target describes a list of blocks.  at any time, if [i..j] (inclusive) is
-        // an active block, then target[i] := j and target[j] := i.
-        for (int i = 0; i < n; i++) {
-            c[b][i] = 1.0;
-            sol[b][i] = s[b][i];
-            sums[b][i] = s[b][i];
-            target[b][i] = i;
-        }
 
-        int i = 0;
-        while (i < n) {
-            auto k = target[b][i] + 1;
-            if (k == n) {
+    const int b = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (b >= batch) {
+        // outside the batch
+        return;
+    }
+
+    // target describes a list of blocks.  at any time, if [i..j] (inclusive) is
+    // an active block, then target[i] := j and target[j] := i.
+    for (int i = 0; i < n; i++) {
+        c[b][i] = 1.0;
+        sol[b][i] = s[b][i];
+        sums[b][i] = s[b][i];
+        target[b][i] = i;
+    }
+
+    int i = 0;
+    while (i < n) {
+        auto k = target[b][i] + 1;
+        if (k == n) {
+            break;
+        }
+        if (sol[b][i] > sol[b][k]) {
+            i = k;
+            continue;
+        }
+        auto sum_y = sums[b][i];
+        auto sum_c = c[b][i];
+        while (true) {
+            // We are within an increasing subsequence
+            auto prev_y = sol[b][k];
+            sum_y += sums[b][k];
+            sum_c += c[b][k];
+            k = target[b][k] + 1;
+            if ((k == n) || (prev_y > sol[b][k])) {
+                // Non-singleton increasing subsequence is finished,
+                // update first entry.
+                sol[b][i] = sum_y / sum_c;
+                sums[b][i] = sum_y;
+                c[b][i] = sum_c;
+                target[b][i] = k - 1;
+                target[b][k - 1] = i;
+                if (i > 0) {
+                    // Backtrack if we can.  This makes the algorithm
+                    // single-pass and ensures O(n) complexity.
+                    i = target[b][i - 1];
+                }
+                // Otherwise, restart from the same point
                 break;
             }
-            if (sol[b][i] > sol[b][k]) {
-                i = k;
-                continue;
-            }
-            auto sum_y = sums[b][i];
-            auto sum_c = c[b][i];
-            while (true) {
-                // We are within an increasing subsequence
-                auto prev_y = sol[b][k];
-                sum_y += sums[b][k];
-                sum_c += c[b][k];
-                k = target[b][k] + 1;
-                if ((k == n) || (prev_y > sol[b][k])) {
-                    // Non-singleton increasing subsequence is finished,
-                    // update first entry.
-                    sol[b][i] = sum_y / sum_c;
-                    sums[b][i] = sum_y;
-                    c[b][i] = sum_c;
-                    target[b][i] = k - 1;
-                    target[b][k - 1] = i;
-                    if (i > 0) {
-                        // Backtrack if we can.  This makes the algorithm
-                        // single-pass and ensures O(n) complexity.
-                        i = target[b][i - 1];
-                    }
-                    // Otherwise, restart from the same point
-                    break;
-                }
-            }
         }
-        // Reconstruct the solution
-        i = 0;
-        while (i < n) {
-            auto k = target[b][i] + 1;
-            for (int j = i + 1; j < k; j++) {
-                sol[b][j] = sol[b][i];
-            }
-            i = k;
+    }
+    // Reconstruct the solution
+    i = 0;
+    while (i < n) {
+        auto k = target[b][i] + 1;
+        for (int j = i + 1; j < k; j++) {
+            sol[b][j] = sol[b][i];
         }
+        i = k;
     }
 }
 
@@ -155,61 +161,67 @@ __global__ void isotonic_kl_kernel(
     torch::PackedTensorAccessor32<scalar_t, 2, torch::RestrictPtrTraits> target,
     int n,
     int batch) {
-    for (int b = 0; b < batch; b++) {
-        // target describes a list of blocks.  At any time, if [i..j] (inclusive) is
-        // an active block, then target[i] := j and target[j] := i.
-        for (int i = 0; i < n; i++) {
-            sol[b][i] = y[b][i] - w[b][i];
-            lse_y_[b][i] = y[b][i];
-            lse_w_[b][i] = w[b][i];
-            target[b][i] = i;
-        }
 
-        int i = 0;
-        while (i < n) {
-            auto k = target[b][i] + 1;
-            if (k == n) {
+    const int b = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (b >= batch) {
+        // outside the batch
+        return;
+    }
+
+    // target describes a list of blocks.  At any time, if [i..j] (inclusive) is
+    // an active block, then target[i] := j and target[j] := i.
+    for (int i = 0; i < n; i++) {
+        sol[b][i] = y[b][i] - w[b][i];
+        lse_y_[b][i] = y[b][i];
+        lse_w_[b][i] = w[b][i];
+        target[b][i] = i;
+    }
+
+    int i = 0;
+    while (i < n) {
+        auto k = target[b][i] + 1;
+        if (k == n) {
+            break;
+        }
+        if (sol[b][i] > sol[b][k]) {
+            i = k;
+            continue;
+        }
+        auto lse_y = lse_y_[b][i];
+        auto lse_w = lse_w_[b][i];
+        while (true) {
+            // We are within an increasing subsequence
+            auto prev_y = sol[b][k];
+            lse_y = log_add_exp(lse_y, lse_y_[b][k]);
+            lse_w = log_add_exp(lse_w, lse_w_[b][k]);
+            k = target[b][k] + 1;
+            if ((k == n) || (prev_y > sol[b][k])) {
+                // Non-singleton increasing subsequence is finished,
+                // update first entry.
+                sol[b][i] = lse_y - lse_w;
+                lse_y_[b][i] = lse_y;
+                lse_w_[b][i] = lse_w;
+                target[b][i] = k - 1;
+                target[b][k - 1] = i;
+                if (i > 0) {
+                    // Backtrack if we can.  This makes the algorithm
+                    // single-pass and ensures O(n) complexity.
+                    i = target[b][i - 1];
+                }
+                // Otherwise, restart from the same point
                 break;
             }
-            if (sol[b][i] > sol[b][k]) {
-                i = k;
-                continue;
-            }
-            auto lse_y = lse_y_[b][i];
-            auto lse_w = lse_w_[b][i];
-            while (true) {
-                // We are within an increasing subsequence
-                auto prev_y = sol[b][k];
-                lse_y = log_add_exp(lse_y, lse_y_[b][k]);
-                lse_w = log_add_exp(lse_w, lse_w_[b][k]);
-                k = target[b][k] + 1;
-                if ((k == n) || (prev_y > sol[b][k])) {
-                    // Non-singleton increasing subsequence is finished,
-                    // update first entry.
-                    sol[b][i] = lse_y - lse_w;
-                    lse_y_[b][i] = lse_y;
-                    lse_w_[b][i] = lse_w;
-                    target[b][i] = k - 1;
-                    target[b][k - 1] = i;
-                    if (i > 0) {
-                        // Backtrack if we can.  This makes the algorithm
-                        // single-pass and ensures O(n) complexity.
-                        i = target[b][i - 1];
-                    }
-                    // Otherwise, restart from the same point
-                    break;
-                }
-            }
         }
-        // Reconstruct the solution
-        i = 0;
-        while (i < n) {
-            auto k = target[b][i] + 1;
-            for (int j = i + 1; j < k; j++) {
-                sol[b][j] = sol[b][i];
-            }
-            i = k;
+    }
+    // Reconstruct the solution
+    i = 0;
+    while (i < n) {
+        auto k = target[b][i] + 1;
+        for (int j = i + 1; j < k; j++) {
+            sol[b][j] = sol[b][i];
         }
+        i = k;
     }
 }
 
@@ -228,23 +240,27 @@ __global__ void isotonic_l2_backward_kernel(
     scalar_t sum;
     scalar_t val;
 
+    const int b = blockIdx.x * blockDim.x + threadIdx.x;
 
-    for (int b = 0; b < batch; b++) {
-        int start = 0;
-        partition(sol, sizes, n, b);
-        for (int size = 0; (sizes[b][size] > 0 && size < n); size++) {
-            end = start + sizes[b][size];
-            sum = 0;
-            val = 1.0 / (scalar_t) sizes[b][size];
-            
-            for (int i = start; i < end; i++) {
-                sum += grad_input[b][i];
-            }
-            for (int i = start; i < end; i++) {
-                ret[b][i] = val * sum;
-            }
-            start = end;
+    if (b >= batch) {
+        // outside the batch
+        return;
+    }
+
+    int start = 0;
+    partition(sol, sizes, n, b);
+    for (int size = 0; (sizes[b][size] > 0 && size < n); size++) {
+        end = start + sizes[b][size];
+        sum = 0;
+        val = 1.0 / (scalar_t) sizes[b][size];
+        
+        for (int i = start; i < end; i++) {
+            sum += grad_input[b][i];
         }
+        for (int i = start; i < end; i++) {
+            ret[b][i] = val * sum;
+        }
+        start = end;
     }
 }
 
@@ -262,23 +278,28 @@ __global__ void isotonic_kl_backward_kernel(
     scalar_t sum;
     scalar_t softmax;
 
-    for (int b = 0; b < batch; b++) {
-        int start = 0;
-        partition(sol, sizes, n, b);
-        for (int size = 0; (sizes[b][size] > 0 && size < n); size++) {
-            end = start + sizes[b][size];
-            sum = 0;
-            softmax = 0;
-            
-            for (int i = start; i < end; i++) {
-                softmax += std::exp(s[b][i]);
-                sum += grad_input[b][i];
-            }
-            for (int i = start; i < end; i++) {
-                ret[b][i] = std::exp(s[b][i]) / softmax * sum;
-            }
-            start = end;
+    const int b = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (b >= batch) {
+        // outside the batch
+        return;
+    }
+
+    int start = 0;
+    partition(sol, sizes, n, b);
+    for (int size = 0; (sizes[b][size] > 0 && size < n); size++) {
+        end = start + sizes[b][size];
+        sum = 0;
+        softmax = 0;
+        
+        for (int i = start; i < end; i++) {
+            softmax += std::exp(s[b][i]);
+            sum += grad_input[b][i];
         }
+        for (int i = start; i < end; i++) {
+            ret[b][i] = std::exp(s[b][i]) / softmax * sum;
+        }
+        start = end;
     }
 }
 
@@ -292,9 +313,8 @@ torch::Tensor isotonic_l2(torch::Tensor y) {
     auto target = torch::zeros_like(y);
     auto c = torch::zeros_like(y);
 
-    // TODO parallelize
-    const int threads = 1;
-    const int blocks = 1;
+    const int threads = 1024;
+    const int blocks = (batch + threads - 1) / threads;
 
     AT_DISPATCH_FLOATING_TYPES(y.scalar_type(), "isotonic_l2", ([&] {
         isotonic_l2_kernel<scalar_t><<<blocks, threads>>>(
@@ -319,9 +339,8 @@ torch::Tensor isotonic_kl(torch::Tensor y, torch::Tensor w) {
     auto lse_w_ = torch::zeros_like(y);
     auto target = torch::zeros_like(y);
 
-    // TODO parallelize
-    const int threads = 1;
-    const int blocks = 1;
+    const int threads = 1024;
+    const int blocks = (batch + threads - 1) / threads;
 
     AT_DISPATCH_FLOATING_TYPES(y.scalar_type(), "isotonic_kl", ([&] {
         isotonic_kl_kernel<scalar_t><<<blocks, threads>>>(
@@ -343,9 +362,8 @@ torch::Tensor isotonic_l2_backward(torch::Tensor s, torch::Tensor sol, torch::Te
     auto ret = torch::zeros_like(sol);
     auto sizes = torch::zeros_like(sol);
 
-    // TODO parallelize
-    const int threads = 1;
-    const int blocks = 1;
+    const int threads = 1024;
+    const int blocks = (batch + threads - 1) / threads;
 
     AT_DISPATCH_FLOATING_TYPES(sol.scalar_type(), "isotonic_l2_backward", ([&] {
         isotonic_l2_backward_kernel<scalar_t><<<blocks, threads>>>(
@@ -366,9 +384,8 @@ torch::Tensor isotonic_kl_backward(torch::Tensor s, torch::Tensor sol, torch::Te
     auto ret = torch::zeros_like(sol);
     auto sizes = torch::zeros_like(sol);
 
-    // TODO parallelize
-    const int threads = 1;
-    const int blocks = 1;
+    const int threads = 1024;
+    const int blocks = (batch + threads - 1) / threads;
 
     AT_DISPATCH_FLOATING_TYPES(sol.scalar_type(), "isotonic_kl_backward", ([&] {
         isotonic_kl_backward_kernel<scalar_t><<<blocks, threads>>>(
