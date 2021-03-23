@@ -5,6 +5,7 @@ import sys
 from functools import lru_cache
 from subprocess import DEVNULL, call
 
+import torch
 from setuptools import setup
 from torch.utils import cpp_extension
 
@@ -14,7 +15,7 @@ def cuda_toolkit_available():
     # https://github.com/idiap/fast-transformers/blob/master/setup.py
     try:
         call(["nvcc"], stdout=DEVNULL, stderr=DEVNULL)
-        return True
+        return True and torch.cuda.is_available()
     except FileNotFoundError:
         return False
 
