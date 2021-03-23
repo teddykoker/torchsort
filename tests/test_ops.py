@@ -16,7 +16,7 @@ REGULARIZATION = ["l2", "kl"]
 REGULARIZATION_STRENGTH = [1e-1, 1e0, 1e1]
 
 DEVICES = (
-    [torch.device("cpu")] + [torch.device("cuda")] if torch.cuda.is_available() else []
+    [torch.device("cpu")] + ([torch.device("cuda")] if torch.cuda.is_available() else [])
 )
 
 torch.manual_seed(0)
