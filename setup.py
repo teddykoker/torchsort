@@ -15,7 +15,7 @@ def cuda_toolkit_available():
     # https://github.com/idiap/fast-transformers/blob/master/setup.py
     try:
         call(["nvcc"], stdout=DEVNULL, stderr=DEVNULL)
-        return True and torch.cuda.is_available()
+        return True
     except FileNotFoundError:
         return False
 
@@ -51,7 +51,7 @@ with open("README.md") as f:
 
 setup(
     name="torchsort",
-    version="0.1.1",
+    version="0.1.2",
     description="Differentiable sorting and ranking in PyTorch",
     author="Teddy Koker",
     url="https://github.com/teddykoker/torchsort",
@@ -63,7 +63,7 @@ setup(
         "Programming Language :: Python :: 3",
     ],
     install_requires=["torch"],
-    python_requires=">=3.8",
+    python_requires=">=3.7",
     extras_require={
         "testing": [
             "pytest",
