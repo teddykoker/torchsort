@@ -17,6 +17,11 @@ extension.
 pip install torchsort
 ```
 
+To build the CUDA extension you will need the CUDA toolchain installed. If you
+want to build in an environment without a CUDA runtime (e.g. docker), you will
+need to export the environment variable
+`TORCH_CUDA_ARCH_LIST="Pascal;Volta;Turing"` before installing.
+
 ## Usage
 
 `torchsort` exposes two functions: `soft_rank` and `soft_sort`, each with
