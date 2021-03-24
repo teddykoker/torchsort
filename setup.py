@@ -5,6 +5,7 @@ import sys
 from functools import lru_cache
 from subprocess import DEVNULL, call
 
+import torch
 from setuptools import setup
 from torch.utils import cpp_extension
 
@@ -14,7 +15,7 @@ def cuda_toolkit_available():
     # https://github.com/idiap/fast-transformers/blob/master/setup.py
     try:
         call(["nvcc"], stdout=DEVNULL, stderr=DEVNULL)
-        return True
+        return True and torch.cuda.is_available()
     except FileNotFoundError:
         return False
 
@@ -50,7 +51,7 @@ with open("README.md") as f:
 
 setup(
     name="torchsort",
-    version="0.1.0",
+    version="0.1.1",
     description="Differentiable sorting and ranking in PyTorch",
     author="Teddy Koker",
     url="https://github.com/teddykoker/torchsort",
