@@ -35,12 +35,16 @@ except ImportError:
 def soft_rank(values, regularization="l2", regularization_strength=1.0):
     if len(values.shape) != 2:
         raise ValueError(f"'values' should be a 2d-tensor but got {values.shape}")
+    if regularization not in ["l2", "kl"]:
+        raise ValueError(f"'regularization' should be a 'l2' or 'kl'")
     return SoftRank.apply(values, regularization, regularization_strength)
 
 
 def soft_sort(values, regularization="l2", regularization_strength=1.0):
     if len(values.shape) != 2:
         raise ValueError(f"'values' should be a 2d-tensor but got {values.shape}")
+    if regularization not in ["l2", "kl"]:
+        raise ValueError(f"'regularization' should be a 'l2' or 'kl'")
     return SoftSort.apply(values, regularization, regularization_strength)
 
 
@@ -90,19 +94,19 @@ class SoftRank(torch.autograd.Function):
         if ctx.regularization == "l2":
             dual_sol = isotonic_l2[s.device.type](s - w)
             ret = (s - dual_sol).gather(1, inv_permutation)
-            ctx.factor = 1.0
+            factor = torch.tensor(1.0, device=s.device)
         else:
             dual_sol = isotonic_kl[s.device.type](s, torch.log(w))
             ret = torch.exp((s - dual_sol).gather(1, inv_permutation))
-            ctx.factor = ret
+            factor = ret
 
-        ctx.save_for_backward(s, dual_sol, permutation, inv_permutation)
+        ctx.save_for_backward(factor, s, dual_sol, permutation, inv_permutation)
         return ret
 
     @staticmethod
     def backward(ctx, grad_output):
-        grad = (grad_output * ctx.factor).clone()
-        s, dual_sol, permutation, inv_permutation = ctx.saved_tensors
+        factor, s, dual_sol, permutation, inv_permutation = ctx.saved_tensors
+        grad = (grad_output * factor).clone()
         if ctx.regularization == "l2":
             grad -= isotonic_l2_backward[s.device.type](
                 s, dual_sol, grad.gather(1, permutation)
