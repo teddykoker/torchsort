@@ -40,7 +40,8 @@ def ext_modules():
             cpp_extension.CUDAExtension(
                 "torchsort.isotonic_cuda",
                 sources=["torchsort/isotonic_cuda.cu"],
-            )
+                extra_compile_args=["-arch=compute_50"],
+            ),
         )
     return extensions
 
@@ -51,7 +52,7 @@ with open("README.md") as f:
 
 setup(
     name="torchsort",
-    version="0.1.3",
+    version="0.1.4",
     description="Differentiable sorting and ranking in PyTorch",
     author="Teddy Koker",
     url="https://github.com/teddykoker/torchsort",
