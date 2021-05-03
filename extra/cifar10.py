@@ -37,14 +37,25 @@ class AverageMeter:
 def main(args):
     torch.manual_seed(0)
 
-    transform = T.Compose([T.ToTensor(), T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+    train_transform = T.Compose(
+        [
+            T.RandomCrop(32, padding=4, padding_mode="reflect"),
+            T.RandomHorizontalFlip(),
+            T.ToTensor(),
+            T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
+        ]
+    )
 
-    train_ds = CIFAR10("./data", train=True, transform=transform, download=True)
+    test_transform = T.Compose(
+        [T.ToTensor(), T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])]
+    )
+
+    train_ds = CIFAR10("./data", train=True, transform=train_transform, download=True)
     train_dl = DataLoader(
         train_ds, batch_size=args.batch_size, shuffle=True, num_workers=4
     )
 
-    test_ds = CIFAR10("./data", train=False, transform=transform, download=True)
+    test_ds = CIFAR10("./data", train=False, transform=test_transform, download=True)
     test_dl = DataLoader(
         test_ds, batch_size=args.batch_size, shuffle=False, num_workers=4
     )
@@ -128,7 +139,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=1024)
     parser.add_argument("--regularization", default="kl")
     parser.add_argument("--regularization_strength", type=float, default=1.0)
-    parser.add_argument("--hidden_size", type=int, default=16)
+    parser.add_argument("--hidden_size", type=int, default=64)
     args = parser.parse_args()
     args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     main(args)
