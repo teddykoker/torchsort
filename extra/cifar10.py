@@ -113,7 +113,7 @@ def main(args):
         # test step
         model.eval()
         with torch.no_grad():
-            for (img, label) in train_dl:
+            for (img, label) in test_dl:
                 img, label = img.to(args.device), label.to(args.device)
                 logit = model(img)
                 test_acc.update(
