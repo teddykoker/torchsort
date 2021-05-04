@@ -1,14 +1,14 @@
 from argparse import ArgumentParser
 
+import matplotlib.pyplot as plt
 import torch
 import torch.nn.functional as F
+import torchsort
 import torchvision
 import torchvision.transforms as T
 from torch import nn
 from torch.utils.data import DataLoader
 from torchvision.datasets import CIFAR10
-
-import torchsort
 
 NUM_CLASSES = 10
 
@@ -42,12 +42,12 @@ def main(args):
             T.RandomCrop(32, padding=4, padding_mode="reflect"),
             T.RandomHorizontalFlip(),
             T.ToTensor(),
-            T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
+            T.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261)),
         ]
     )
 
     test_transform = T.Compose(
-        [T.ToTensor(), T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])]
+        [T.ToTensor(), T.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))]
     )
 
     train_ds = CIFAR10("./data", train=True, transform=train_transform, download=True)
@@ -94,7 +94,9 @@ def main(args):
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
-    for epoch in range(600):
+    test_accs = []
+
+    for epoch in range(args.epochs):
         train_loss = AverageMeter("train_loss")
         test_acc = AverageMeter("test_acc")
 
@@ -132,6 +134,23 @@ def main(args):
                 )
 
         print(epoch, test_acc, train_loss)
+        test_accs.append(test_acc.avg)
+
+    def smooth(xs, factor=0.9):
+        out = [xs[0]]
+        for x in xs[1:]:
+            out.append(out[-1] * factor + x * (1 - factor))
+        return out
+
+    test_accs = torch.stack(test_accs).cpu().numpy()
+    plt.figure(figsize=(5, 3))
+    plt.plot(test_accs, alpha=0.1, color="tab:blue")
+    plt.plot(smooth(test_accs), color="tab:blue")
+    plt.ylim(0.76, 0.86)
+    plt.xlabel("Epochs")
+    plt.ylabel("Test accuracy")
+    plt.title("CIFAR-10")
+    plt.savefig("extra/cifar10_test_accuracy.png", dpi=300, bbox_inches="tight")
 
 
 if __name__ == "__main__":
@@ -140,6 +159,7 @@ if __name__ == "__main__":
     parser.add_argument("--regularization", default="kl")
     parser.add_argument("--regularization_strength", type=float, default=1.0)
     parser.add_argument("--hidden_size", type=int, default=64)
+    parser.add_argument("--epochs", type=int, default=600)
     args = parser.parse_args()
     args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     main(args)
