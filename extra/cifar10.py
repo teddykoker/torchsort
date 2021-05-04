@@ -150,7 +150,7 @@ def main(args):
     plt.xlabel("Epochs")
     plt.ylabel("Test accuracy")
     plt.title("CIFAR-10")
-    plt.savefig("extra/cifar10_test_accuracy.png", dpi=300, bbox_inches="tight")
+    plt.savefig("extra/cifar10_test_accuracy.png", dpi=150, bbox_inches="tight")
 
 
 if __name__ == "__main__":
