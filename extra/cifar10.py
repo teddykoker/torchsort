@@ -1,16 +1,37 @@
 from argparse import ArgumentParser
+from functools import partial
+from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn.functional as F
-import torchsort
 import torchvision
 import torchvision.transforms as T
 from torch import nn
 from torch.utils.data import DataLoader
 from torchvision.datasets import CIFAR10
 
+import torchsort
+
 NUM_CLASSES = 10
+
+
+def topk_loss(input, target, regularization="kl", regularization_strength=1.0):
+
+    # TODO: not sure if this is what they mean by logistic map
+    # "On the other hand, for top-k classification, we find that applying a
+    # logistic map to squash \theta to [0, 1] and tuning \epsilon is important "
+    input = F.softmax(input, dim=-1)
+
+    # computes ranks of logits
+    ranks = torchsort.soft_rank(input, regularization, regularization_strength)
+
+    # gather ranks at label
+    ranks_label = ranks.gather(-1, target.view(-1, 1))
+
+    # See https://github.com/teddykoker/torchsort/issues/19#issuecomment-831525303
+    return F.relu(NUM_CLASSES - ranks_label).mean()
 
 
 class AverageMeter:
@@ -92,6 +113,16 @@ def main(args):
         nn.Linear(512, NUM_CLASSES),
     ).to(args.device)
 
+    loss_fn = (
+        F.cross_entropy
+        if args.loss_fn == "cross_entropy"
+        else partial(
+            topk_loss,
+            regularization=args.regularization,
+            regularization_strength=args.regularization_strength,
+        )
+    )
+
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
     test_accs = []
@@ -106,18 +137,10 @@ def main(args):
             img, label = img.to(args.device), label.to(args.device)
             optimizer.zero_grad()
 
-            logit = model(img)
+            pred = model(img)
 
-            # computes ranks of logits
-            ranks = torchsort.soft_rank(
-                logit, args.regularization, args.regularization_strength
-            )
+            loss = loss_fn(pred, label)
 
-            # gather ranks at label
-            ranks_label = ranks.gather(-1, label.view(-1, 1))
-
-            # See https://github.com/teddykoker/torchsort/issues/19#issuecomment-831525303
-            loss = F.relu(NUM_CLASSES - ranks_label).mean()
             loss.backward()
             optimizer.step()
 
@@ -143,23 +166,51 @@ def main(args):
         return out
 
     test_accs = torch.stack(test_accs).cpu().numpy()
+    regularization = (
+        f"_{args.regularization}_{args.regularization_strength}"
+        if args.loss_fn == "topk"
+        else ""
+    )
+    np.save(f"{args.loss_fn}{regularization}_acc.npy", test_accs)
+
+
+def plot():
+    def smooth(xs, factor=0.9):
+        out = [xs[0]]
+        for x in xs[1:]:
+            out.append(out[-1] * factor + x * (1 - factor))
+        return out
+
+    colors = ["tab:blue", "tab:orange"]
     plt.figure(figsize=(5, 3))
-    plt.plot(test_accs, alpha=0.1, color="tab:blue")
-    plt.plot(smooth(test_accs), color="tab:blue")
-    plt.ylim(0.76, 0.86)
+    for i, file in enumerate(Path("./").glob("*.npy")):
+        print(file)
+        test_accs = np.load(file)
+        plt.plot(test_accs, alpha=0.1, color=colors[i])
+        plt.plot(smooth(test_accs), color=colors[i], label=file.stem)
+
+    plt.ylim(0.78, 0.88)
     plt.xlabel("Epochs")
     plt.ylabel("Test accuracy")
     plt.title("CIFAR-10")
+    plt.legend()
     plt.savefig("extra/cifar10_test_accuracy.png", dpi=150, bbox_inches="tight")
 
 
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--batch_size", type=int, default=1024)
+    parser.add_argument(
+        "--loss_fn", choices=["cross_entropy", "topk"], default="cross_entropy"
+    )
     parser.add_argument("--regularization", default="kl")
     parser.add_argument("--regularization_strength", type=float, default=1.0)
     parser.add_argument("--hidden_size", type=int, default=64)
     parser.add_argument("--epochs", type=int, default=600)
+    parser.add_argument("--plot", action="store_true")
     args = parser.parse_args()
     args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    main(args)
+    if args.plot:
+        plot()
+    else:
+        main(args)
