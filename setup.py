@@ -51,7 +51,7 @@ with open("README.md") as f:
 
 setup(
     name="torchsort",
-    version="0.1.5",
+    version="0.1.6",
     description="Differentiable sorting and ranking in PyTorch",
     author="Teddy Koker",
     url="https://github.com/teddykoker/torchsort",
