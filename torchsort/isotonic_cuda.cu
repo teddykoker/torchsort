@@ -316,7 +316,7 @@ torch::Tensor isotonic_l2(torch::Tensor y) {
     const int threads = 1024;
     const int blocks = (batch + threads - 1) / threads;
 
-    AT_DISPATCH_FLOATING_TYPES(y.scalar_type(), "isotonic_l2", ([&] {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(y.scalar_type(), "isotonic_l2", ([&] {
         isotonic_l2_kernel<scalar_t><<<blocks, threads>>>(
             y.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
             sol.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
@@ -342,7 +342,7 @@ torch::Tensor isotonic_kl(torch::Tensor y, torch::Tensor w) {
     const int threads = 1024;
     const int blocks = (batch + threads - 1) / threads;
 
-    AT_DISPATCH_FLOATING_TYPES(y.scalar_type(), "isotonic_kl", ([&] {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(y.scalar_type(), "isotonic_kl", ([&] {
         isotonic_kl_kernel<scalar_t><<<blocks, threads>>>(
             y.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
             w.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
@@ -365,7 +365,7 @@ torch::Tensor isotonic_l2_backward(torch::Tensor s, torch::Tensor sol, torch::Te
     const int threads = 1024;
     const int blocks = (batch + threads - 1) / threads;
 
-    AT_DISPATCH_FLOATING_TYPES(sol.scalar_type(), "isotonic_l2_backward", ([&] {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(sol.scalar_type(), "isotonic_l2_backward", ([&] {
         isotonic_l2_backward_kernel<scalar_t><<<blocks, threads>>>(
             s.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
             sol.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
@@ -387,7 +387,7 @@ torch::Tensor isotonic_kl_backward(torch::Tensor s, torch::Tensor sol, torch::Te
     const int threads = 1024;
     const int blocks = (batch + threads - 1) / threads;
 
-    AT_DISPATCH_FLOATING_TYPES(sol.scalar_type(), "isotonic_kl_backward", ([&] {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(sol.scalar_type(), "isotonic_kl_backward", ([&] {
         isotonic_kl_backward_kernel<scalar_t><<<blocks, threads>>>(
             s.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
             sol.packed_accessor32<scalar_t, 2, torch::RestrictPtrTraits>(),
