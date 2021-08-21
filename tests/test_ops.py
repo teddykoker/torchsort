@@ -67,10 +67,11 @@ def test_vs_original(funcs, regularization, regularization_strength, device):
 @pytest.mark.parametrize("device", DEVICES)
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA to test fp16")
 def test_half(function, regularization, regularization_strength, device):
-    x = torch.randn(BATCH_SIZE, SEQ_LEN, dtype=torch.float16, requires_grad=True).cuda()
+    x = torch.randn(BATCH_SIZE, SEQ_LEN, requires_grad=True).cuda().half()
     f = partial(
         function,
         regularization=regularization,
         regularization_strength=regularization_strength,
     )
-    f(x)
+    # don't think theres a better way of testing, tolerance must be pretty high
+    assert torch.allclose(f(x), f(x.float()).half(), atol=1e-1)
