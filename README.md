@@ -22,6 +22,19 @@ want to build in an environment without a CUDA runtime (e.g. docker), you will
 need to export the environment variable
 `TORCH_CUDA_ARCH_LIST="Pascal;Volta;Turing;Ampere"` before installing.
 
+<details>
+<summary><strong>Conda Installation</strong></summary>
+On some systems the package my not compile with `pip` install in conda
+environments. If this happens you may need to:
+    
+ 1. Install g++ with `conda install -c conda-forge gxx_linux-64`
+ 2. Set export variable `export CXX=/path/to/miniconda3/envs/env_name/bin/x86_64-conda_cos6-linux-gnu-g++`
+ 3. If still failing, export variable `export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/miniconda3/lib`
+
+Thanks to @levnikmyskin for pointing this out!
+</details>
+
+
 ## Usage
 
 `torchsort` exposes two functions: `soft_rank` and `soft_sort`, each with
