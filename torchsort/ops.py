@@ -26,10 +26,18 @@ try:
     from .isotonic_cuda import isotonic_l2 as isotonic_l2_cuda
     from .isotonic_cuda import isotonic_l2_backward as isotonic_l2_backward_cuda
 except ImportError:
-    isotonic_l2_cuda = None
-    isotonic_kl_cuda = None
-    isotonic_l2_backward_cuda = None
-    isotonic_kl_backward_cuda = None
+
+    def _error(*args, **kwargs):
+        raise ImportError(
+            "You are trying to use the torchsort CUDA extension, but it looks like it is not available."
+            " Make sure you have the CUDA toolchain installed, and reinstall torchsort with `pip install --force-reinstall --no-cache-dir torchsort`"
+            " to rebuild the extension."
+        )
+
+    isotonic_l2_cuda = _error
+    isotonic_kl_cuda = _error
+    isotonic_l2_backward_cuda = _error
+    isotonic_kl_backward_cuda = _error
 
 
 def soft_rank(values, regularization="l2", regularization_strength=1.0):
