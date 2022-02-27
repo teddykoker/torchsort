@@ -30,9 +30,7 @@
 
 
 #include <torch/extension.h>
-// #include <cuda.h>
-// #include <cuda_runtime.h>
-// #include <iostream>
+#include <c10/cuda/CUDAGuard.h>
 
 //  Copied from fast-soft-sort (https://bit.ly/3r0gOav) with the following modifications:
 //  - replace numpy functions with torch equivalents
@@ -306,6 +304,7 @@ __global__ void isotonic_kl_backward_kernel(
 // Solves an isotonic regression problem using PAV.
 // Formally, it solves argmin_{v_1 >= ... >= v_n} 0.5 ||v - y||^2.
 torch::Tensor isotonic_l2(torch::Tensor y) {
+    const at::cuda::OptionalCUDAGuard device_guard(device_of(y));
     auto batch = y.size(0);
     auto n = y.size(1);
     auto sol = torch::zeros_like(y);
@@ -332,6 +331,7 @@ torch::Tensor isotonic_l2(torch::Tensor y) {
 // Solves isotonic optimization with KL divergence using PAV.
 // Formally, it solves argmin_{v_1 >= ... >= v_n} <e^{y-v}, 1> + <e^w, v>.
 torch::Tensor isotonic_kl(torch::Tensor y, torch::Tensor w) {
+    const at::cuda::OptionalCUDAGuard device_guard(device_of(y));
     auto batch = y.size(0);
     auto n = y.size(1);
     auto sol = torch::zeros_like(y);
@@ -357,6 +357,7 @@ torch::Tensor isotonic_kl(torch::Tensor y, torch::Tensor w) {
 }
 
 torch::Tensor isotonic_l2_backward(torch::Tensor s, torch::Tensor sol, torch::Tensor grad_input) {
+    const at::cuda::OptionalCUDAGuard device_guard(device_of(s));
     auto batch = sol.size(0);
     auto n = sol.size(1);
     auto ret = torch::zeros_like(sol);
@@ -379,6 +380,7 @@ torch::Tensor isotonic_l2_backward(torch::Tensor s, torch::Tensor sol, torch::Te
 }
 
 torch::Tensor isotonic_kl_backward(torch::Tensor s, torch::Tensor sol, torch::Tensor grad_input) {
+    const at::cuda::OptionalCUDAGuard device_guard(device_of(s));
     auto batch = sol.size(0);
     auto n = sol.size(1);
     auto ret = torch::zeros_like(sol);

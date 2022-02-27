@@ -67,6 +67,7 @@ def test_vs_original(funcs, regularization, regularization_strength, device):
 @pytest.mark.parametrize("device", DEVICES)
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA to test fp16")
 def test_half(function, regularization, regularization_strength, device):
+    # check half precision
     x = torch.randn(BATCH_SIZE, SEQ_LEN, requires_grad=True).cuda().half()
     f = partial(
         function,
@@ -75,3 +76,25 @@ def test_half(function, regularization, regularization_strength, device):
     )
     # don't think theres a better way of testing, tolerance must be pretty high
     assert torch.allclose(f(x), f(x.float()).half(), atol=1e-1)
+
+
+@pytest.mark.parametrize("function", [soft_rank, soft_sort])
+@pytest.mark.parametrize("regularization", REGULARIZATION)
+@pytest.mark.parametrize("regularization_strength", REGULARIZATION_STRENGTH)
+@pytest.mark.skipif(
+    torch.cuda.device_count() < 2,
+    reason="requires at least 2 GPU for non-default device check"
+)
+def test_non_default_cuda(function, regularization, regularization_strength):
+    # check same output on multi-gpu
+    x = torch.randn(BATCH_SIZE, SEQ_LEN, dtype=torch.float64, requires_grad=True)
+    f = partial(
+        function,
+        regularization=regularization,
+        regularization_strength=regularization_strength,
+    )
+    assert torch.allclose(
+        f(x.to("cuda:0")).cpu(),
+        f(x.to("cuda:1")).cpu()
+    )
+
