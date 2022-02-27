@@ -15,8 +15,9 @@ SEQ_LEN = 10
 REGULARIZATION = ["l2", "kl"]
 REGULARIZATION_STRENGTH = [1e-1, 1e0, 1e1]
 
+# use CPU, and up to two CUDA devices
 DEVICES = [torch.device("cpu")] + (
-    [torch.device("cuda")] if torch.cuda.is_available() else []
+    [torch.device(f"cuda:{d}") for d in range(min(torch.cuda.device_count(), 2))]
 )
 
 torch.manual_seed(0)
@@ -77,24 +78,4 @@ def test_half(function, regularization, regularization_strength, device):
     # don't think theres a better way of testing, tolerance must be pretty high
     assert torch.allclose(f(x), f(x.float()).half(), atol=1e-1)
 
-
-@pytest.mark.parametrize("function", [soft_rank, soft_sort])
-@pytest.mark.parametrize("regularization", REGULARIZATION)
-@pytest.mark.parametrize("regularization_strength", REGULARIZATION_STRENGTH)
-@pytest.mark.skipif(
-    torch.cuda.device_count() < 2,
-    reason="requires at least 2 GPU for non-default device check"
-)
-def test_non_default_cuda(function, regularization, regularization_strength):
-    # check same output on multi-gpu
-    x = torch.randn(BATCH_SIZE, SEQ_LEN, dtype=torch.float64, requires_grad=True)
-    f = partial(
-        function,
-        regularization=regularization,
-        regularization_strength=regularization_strength,
-    )
-    assert torch.allclose(
-        f(x.to("cuda:0")).cpu(),
-        f(x.to("cuda:1")).cpu()
-    )
 
