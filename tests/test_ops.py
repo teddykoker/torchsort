@@ -15,8 +15,9 @@ SEQ_LEN = 10
 REGULARIZATION = ["l2", "kl"]
 REGULARIZATION_STRENGTH = [1e-1, 1e0, 1e1]
 
+# use CPU, and up to two CUDA devices
 DEVICES = [torch.device("cpu")] + (
-    [torch.device("cuda")] if torch.cuda.is_available() else []
+    [torch.device(f"cuda:{d}") for d in range(min(torch.cuda.device_count(), 2))]
 )
 
 torch.manual_seed(0)
@@ -67,6 +68,7 @@ def test_vs_original(funcs, regularization, regularization_strength, device):
 @pytest.mark.parametrize("device", DEVICES)
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA to test fp16")
 def test_half(function, regularization, regularization_strength, device):
+    # check half precision
     x = torch.randn(BATCH_SIZE, SEQ_LEN, requires_grad=True).cuda().half()
     f = partial(
         function,
@@ -75,3 +77,5 @@ def test_half(function, regularization, regularization_strength, device):
     )
     # don't think theres a better way of testing, tolerance must be pretty high
     assert torch.allclose(f(x), f(x.float()).half(), atol=1e-1)
+
+
