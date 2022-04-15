@@ -27,11 +27,12 @@ need to export the environment variable
 On some systems the package my not compile with `pip` install in conda
 environments. If this happens you may need to:
     
- 1. Install g++ with `conda install -c conda-forge gxx_linux-64`
- 2. Set export variable `export CXX=/path/to/miniconda3/envs/env_name/bin/x86_64-conda_cos6-linux-gnu-g++`
- 3. If still failing, export variable `export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/miniconda3/lib`
+ 1. Install g++ with `conda install -c conda-forge gxx_linux-64=9.40`
+ 2. Run `export CXX=/path/to/miniconda3/envs/env_name/bin/x86_64-conda_cos6-linux-gnu-g++`
+ 3. Run `export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/miniconda3/lib`
+ 4. `pip install --force-reinstall --no-cache-dir --no-deps torchsort`
 
-Thanks to @levnikmyskin for pointing this out!
+Thanks to @levnikmyskin, @sachit-menon for pointing this out!
 </details>
 
 
