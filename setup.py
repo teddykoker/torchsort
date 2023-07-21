@@ -68,7 +68,7 @@ setup(
         "testing": [
             "pytest",
             "torch",
-            "fast_soft_sort @ git+https://github.com/google-research/fast-soft-sort.git@c3110360d7c94c42027865c71b23e46fa22151e2",
+            "fast_soft_sort @ git+https://github.com/google-research/fast-soft-sort.git@6a52ce79869ab16e1e0f39149a84f50f8ad648c5",
         ],
     },
     ext_modules=ext_modules(),
