@@ -14,9 +14,9 @@ jobs:
         cuda-version: ['cpu', 'cu113', 'cu117', 'cu118']
         exclude:
           - torch-version: 1.13.1
-            cuda-version: 'cu118'
+            cuda-version: cu118
           - torch-version: 2.0.1
-            cuda-version: 'cu113'
+            cuda-version: cu113
     steps:
       - name: Free disk space
         run: |
@@ -43,7 +43,7 @@ jobs:
       - id: build-wheel
         name: Build wheel
         env:
-          TORCHSORT_VERSION_SUFFIX: "+${{ matrix.cuda-version }}"
+          TORCHSORT_VERSION_SUFFIX: "+${{ matrix.cuda-version }}_torch${{ matrix.torch-version }}"
         run: |
           export FORCE_CUDA=1
           export TORCH_CUDA_ARCH_LIST="3.5;5.0+PTX;6.0;7.0;7.5;8.0;8.6"
@@ -65,9 +65,6 @@ jobs:
     - uses: actions/download-artifact@v3
     - uses: ncipollo/release-action@v1
       with:
-        allowUpdates : true
-        tag: "dev"
-        commit: ${{ github.head_sha }}
         omitName: true
         omitBody: true
         artifacts: "*/*.whl"
