@@ -59,7 +59,7 @@ jobs:
           export TORCH_CUDA_ARCH_LIST="3.5;5.0+PTX;6.0;7.0;7.5;8.0;8.6"
           TORCH_VERSION=`echo "pt${{ matrix.torch-version }}" | sed "s/..$//" | sed "s/\.//g"`
           CUDA_VERSION=`echo ${{ matrix.cuda-version }}`
-          export TORCHSORT_VERSION_SUFFIX: "+$TORCH_VERSION$CUDA_VERSION"
+          export TORCHSORT_VERSION_SUFFIX="+$TORCH_VERSION$CUDA_VERSION"
           python3 -m pip install wheel
           python3 setup.py bdist_wheel --dist-dir=dist
           echo "distname=$(ls dist)" >> ${GITHUB_OUTPUT}
