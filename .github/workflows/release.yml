@@ -21,12 +21,10 @@ jobs:
         os: [ubuntu-20.04]
         python-version: ['3.10', '3.11']
         torch-version: ['1.13.1', '2.0.1']
-        cuda-version: ['cpu', 'cu113', 'cu117', 'cu118']
+        cuda-version: ['cpu', 'cu117', 'cu118']
         exclude:
           - torch-version: 1.13.1
             cuda-version: cu118
-          - torch-version: 2.0.1
-            cuda-version: cu113
     steps:
       - name: Free disk space
         run: |
@@ -57,7 +55,7 @@ jobs:
         run: |
           export FORCE_CUDA=1
           export TORCH_CUDA_ARCH_LIST="3.5;5.0+PTX;6.0;7.0;7.5;8.0;8.6"
-          TORCH_VERSION=`echo "pt${{ matrix.torch-version }}" | sed "s/..$//" | sed "s/\.//g"`
+          TORCH_VERSION=`echo "pt${{ matrix.torch-version }}" | sed 's/^\([0-9]\+\.[0-9]\+\).*$/\1/' | sed "s/\.//g"
           CUDA_VERSION=`echo ${{ matrix.cuda-version }}`
           export TORCHSORT_VERSION_SUFFIX="+$TORCH_VERSION$CUDA_VERSION"
           python3 -m pip install wheel
