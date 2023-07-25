@@ -1,6 +1,16 @@
 name: Release
 
-on: [workflow_dispatch]
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Release Version'
+        required: true
+        type: string
+  push:
+    branches: [main]
+  pull_request:
+    branches: ["*"]
 
 jobs:
   wheels:
@@ -43,7 +53,7 @@ jobs:
       - id: build-wheel
         name: Build wheel
         env:
-          TORCHSORT_VERSION_SUFFIX: "+${{ matrix.cuda-version }}_torch${{ matrix.torch-version }}"
+          TORCHSORT_VERSION_SUFFIX: "+${{ matrix.cuda-version }}-torch${{ matrix.torch-version }}"
         run: |
           export FORCE_CUDA=1
           export TORCH_CUDA_ARCH_LIST="3.5;5.0+PTX;6.0;7.0;7.5;8.0;8.6"
@@ -57,6 +67,7 @@ jobs:
           path: dist/${{ steps.build-wheel.outputs.distname }}
 
   release:
+    if: ${{ inputs.release_version || startsWith(github.ref, 'refs/tags/') }}
     needs: wheels
     runs-on: ubuntu-latest
     permissions:
@@ -65,6 +76,8 @@ jobs:
     - uses: actions/download-artifact@v3
     - uses: ncipollo/release-action@v1
       with:
+        tag: ${{ inputs.release_version }}
+        allowUpdates: true
         omitName: true
         omitBody: true
         artifacts: "*/*.whl"
