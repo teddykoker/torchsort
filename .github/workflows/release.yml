@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Release Version'
+        required: true
+        type: string
+  push:
+    branches: [main]
+  pull_request:
+    branches: ["*"]
+
+jobs:
+  wheels:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-20.04]
+        python-version: ['3.10', '3.11']
+        torch-version: ['1.13.1', '2.0.1']
+        cuda-version: ['cpu', 'cu113', 'cu117', 'cu118']
+        exclude:
+          - torch-version: 1.13.1
+            cuda-version: cu118
+          - torch-version: 2.0.1
+            cuda-version: cu113
+    steps:
+      - name: Free disk space
+        run: |
+          df -h
+          sudo rm -rf /usr/share/dotnet /usr/share/swift /opt/hostedtoolcache/CodeQL
+          df -h
+      - uses: actions/checkout@v3
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Upgrade pip
+        run: |
+          python3 -m pip install --upgrade pip setuptools
+      - name: Install CUDA ${{ matrix.cuda-version }}
+        if: ${{ matrix.cuda-version != 'cpu' }}
+        run: |
+          .github/workflows/cuda/install.sh "${{ matrix.cuda-version }}" "${{ runner.os }}"
+      - name: Install PyTorch ${{ matrix.torch-version }}+${{ matrix.cuda-version }}
+        run: |
+          python3 -m pip install torch==${{ matrix.torch-version }} --extra-index-url https://download.pytorch.org/whl/${{ matrix.cuda-version }}
+          python3 -c "import torch; print('PyTorch:', torch.__version__)"
+          python3 -c "import torch; print('CUDA:', torch.version.cuda)"
+      - id: build-wheel
+        name: Build wheel
+        env:
+          TORCHSORT_VERSION_SUFFIX: "+${{ matrix.cuda-version }}-torch${{ matrix.torch-version }}"
+        run: |
+          export FORCE_CUDA=1
+          export TORCH_CUDA_ARCH_LIST="3.5;5.0+PTX;6.0;7.0;7.5;8.0;8.6"
+          python3 -m pip install wheel
+          python3 setup.py bdist_wheel --dist-dir=dist
+          echo "distname=$(ls dist)" >> ${GITHUB_OUTPUT}
+        shell: bash
+      - uses: actions/upload-artifact@v3
+        with:
+          name: ${{ steps.build-wheel.outputs.distname }}
+          path: dist/${{ steps.build-wheel.outputs.distname }}
+
+  release:
+    if: ${{ inputs.release_version || startsWith(github.ref, 'refs/tags/') }}
+    needs: wheels
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/download-artifact@v3
+    - uses: ncipollo/release-action@v1
+      with:
+        tag: ${{ inputs.release_version }}
+        allowUpdates: true
+        omitName: true
+        omitBody: true
+        artifacts: "*/*.whl"
