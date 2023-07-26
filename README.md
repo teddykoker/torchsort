@@ -52,7 +52,7 @@ export PYTHON=cp310
 pip install https://github.com/teddykoker/torchsort/releases/download/v${TORCHSORT}/torchsort-${TORCHSORT}+${TORCH}${CUDA}-${PYTHON}-${PYTHON}-linux_x86_64.whl
 ```
 
-
+Thanks to @siddharthab for the help creating the build action!
 
 ## Usage
 
