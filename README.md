@@ -35,13 +35,31 @@ environments. If this happens you may need to:
 Thanks to @levnikmyskin, @sachit-menon for pointing this out!
 </details>
 
+### Pre-built Wheels
+
+Pre-built wheels are currently available on Linux for some Python/PyTorch/CUDA combinations:
+
+```bash
+# torchsort version, supports >= 1.9.0
+export TORCHSORT=1.9.0
+# PyTorch version, supports pt20 and pt113 for versions 2.0 and 1.13 respectively
+export TORCH=pt20
+# CUDA version, supports cpu, cu113, cu117, cu118 for CPU-only, CUDA 11.3, CUDA 11.7 and CUDA 11.8 respectively
+export CUDA=cu118
+# Python version, supports cp310 and cp311 for versions 3.10 and 3.11 respectively
+export PYTHON=cp310
+
+pip install https://github.com/teddykoker/torchsort/releases/download/v${TORCHSORT}/torchsort-${TORCHSORT}+${TORCH}${CUDA}-${PYTHON}-${PYTHON}-linux_x86_64.whl
+```
+
+
 
 ## Usage
 
 `torchsort` exposes two functions: `soft_rank` and `soft_sort`, each with
 parameters `regularization` (`"l2"` or `"kl"`) and `regularization_strength` (a
 scalar value). Each will rank/sort the last dimension of a 2-d tensor, with an
-accuracy dependant upon the regularization strength:
+accuracy dependent upon the regularization strength:
 
 ```python
 import torch
