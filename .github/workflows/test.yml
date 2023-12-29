@@ -17,13 +17,14 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Upgrade pip
-      run: python3 -m pip install --upgrade pip setuptools
     - name: Install PyTorch
       run: python3 -m pip install torch --index-url https://download.pytorch.org/whl/cpu
-    # - name: Install Package
-    #   run: python3 setup.py develop
-    - name: Install Dependencies # this used to work without running setup.py develop... not sure why it broke
-      run: python3 -m pip install -e .[testing]
+    # this used to work but for some reason fails with "No module named 'torch'", despite it being available
+    # - name: Install Dependencies
+    #   run: python3 -m pip install -e .[testing]
+    - name: Install Package
+      run: python3 setup.py develop
+    - name: Install Dependencies
+      run: python -m pip install pytest git+https://github.com/google-research/fast-soft-sort.git@6a52ce79869ab16e1e0f39149a84f50f8ad648c5
     - name: Run Pytest
       run: python3 -m pytest -s -v
