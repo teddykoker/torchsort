@@ -19,9 +19,9 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install PyTorch
       run: python3 -m pip install torch --index-url https://download.pytorch.org/whl/cpu
-    - name: Check PyTorch
-      run: python3 -c "import torch; print(torch.__version__)"
     - name: Install Package
       run: python3 setup.py develop
+    - name: Install Test Dependencies # this used to work without running setup.py develop... not sure why it broke
+      run: python3 -m pip install -e .[testing]
     - name: Run Pytest
       run: python3 -m pytest -s -v
