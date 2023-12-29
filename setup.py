@@ -67,7 +67,7 @@ setup(
     extras_require={
         "testing": [
             "pytest",
-            "torch",
+            # "torch",
             "fast_soft_sort @ git+https://github.com/google-research/fast-soft-sort.git@6a52ce79869ab16e1e0f39149a84f50f8ad648c5",
         ],
     },
