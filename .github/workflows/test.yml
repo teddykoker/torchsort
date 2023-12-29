@@ -17,7 +17,9 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Install Dependencies
-      run: pip install torch --index-url https://download.pytorch.org/whl/cpu && pip install -e '.[testing]'
+    - name: Install PyTorch
+      run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+    - name: Install Package
+      run: pip install -e '.[testing]'
     - name: Run Pytest
       run: python -m pytest -s -v
