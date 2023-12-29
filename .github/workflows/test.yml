@@ -22,6 +22,6 @@ jobs:
     - name: Check PyTorch
       run: python3 -c "import torch; print(torch.__version__)"
     - name: Install Package
-      run: python3 -m pip install -e '.[testing]'
+      run: python3 setup.py develop
     - name: Run Pytest
       run: python3 -m pytest -s -v
