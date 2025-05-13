@@ -1,0 +1,35 @@
+[build-system]
+requires = [
+    "setuptools>=61.0",
+    "wheel",
+    "torch>=1.7.1"  # Required for torch.utils.cpp_extension during build
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "torchsort"
+dynamic = ["version"]  # Version is defined in setup.py and read by setuptools
+description = "Differentiable sorting and ranking in PyTorch"
+readme = "README.md"
+requires-python = ">=3.7"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Teddy Koker" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3"
+]
+dependencies = [
+    "torch>=1.7.1"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/teddykoker/torchsort"
+"Repository" = "https://github.com/teddykoker/torchsort"
+"Bug Tracker" = "https://github.com/teddykoker/torchsort/issues"
+
+[project.optional-dependencies]
+testing = [
+    "pytest",
+    "fast_soft_sort @ git+https://github.com/google-research/fast-soft-sort.git@6a52ce79869ab16e1e0f39149a84f50f8ad648c5"
+]
