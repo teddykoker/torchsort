@@ -42,18 +42,21 @@ Pre-built wheels are currently available on Linux for recent Python/PyTorch/CUDA
 ```bash
 # torchsort version, supports >= 0.1.9
 export TORCHSORT=0.1.9
-# PyTorch version, supports pt21, pt20, and pt113 for versions 2.1, 2.0, and 1.13 respectively
-export TORCH=pt21
-# CUDA version, supports cpu, cu113, cu117, cu118, and cu121 for CPU-only, CUDA 11.3, CUDA 11.7,
-# CUDA 11.8 and CUDA 12.1 respectively
-export CUDA=cu121
-# Python version, supports cp310 and cp311 for versions 3.10 and 3.11 respectively
-export PYTHON=cp310
+# PyTorch version, supports pt26, pt25, pt24, pt21, pt20, and pt113 for versions
+# 2.6, 2.5, 2.4, 2.1, 2.0, and 1.13 respectively
+export TORCH=pt26
+# CUDA version, supports cpu, cu113, cu117, cu118, cu121, cu124, and cu126 for
+# CPU-only, CUDA 11.3, CUDA 11.7, CUDA 11.8, CUDA 12.1, CUDA 12.4, and CUDA 12.6
+# respectively
+export CUDA=cu126
+# Python version, supports cp310, cp311, and cp312 for versions 3.10, 3.11, and
+# 3.12 respectively
+export PYTHON=cp312
 
 pip install https://github.com/teddykoker/torchsort/releases/download/v${TORCHSORT}/torchsort-${TORCHSORT}+${TORCH}${CUDA}-${PYTHON}-${PYTHON}-linux_x86_64.whl
 ```
 
-Thanks to @siddharthab for the help creating the build action!
+Thanks to [siddharthab](https://github.com/siddharthab) for the help creating the build action! See the [latest release](https://github.com/teddykoker/torchsort/releases/latest) for a list of supported combinations in *Assets*.
 
 ## Usage
 
