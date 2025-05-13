@@ -105,7 +105,7 @@ jobs:
           python3 setup.py bdist_wheel --dist-dir=dist
           echo "distname=$(ls dist)" >> ${GITHUB_OUTPUT}
         shell: bash
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.build-wheel.outputs.distname }}
           path: dist/${{ steps.build-wheel.outputs.distname }}
