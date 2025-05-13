@@ -18,19 +18,56 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04]
-        python-version: ['3.10', '3.11']
-        torch-version: ['1.13.1', '2.0.1', '2.1.0']
-        cuda-version: ['cpu', 'cu117', 'cu118', 'cu121']
-        exclude:
-          - torch-version: 1.13.1
-            cuda-version: cu118
-          - torch-version: 1.13.1
-            cuda-version: cu121
-          - torch-version: 2.0.1
-            cuda-version: cu121
-          - torch-version: 2.1.0
-            cuda-version: cu117
+        os: [ubuntu-24.04]
+        python-version: ['3.10', '3.11', '3.12']
+        include-combo:
+          - torch-version: '1.13.1'
+            cuda-version: 'cpu'
+          - torch-version: '1.13.1'
+            cuda-version: 'cu117'
+          
+          - torch-version: '2.0.1'
+            cuda-version: 'cpu'
+          - torch-version: '2.0.1'
+            cuda-version: 'cu117'
+          - torch-version: '2.0.1'
+            cuda-version: 'cu118'
+          
+          - torch-version: '2.1.0'
+            cuda-version: 'cpu'
+          - torch-version: '2.1.0'
+            cuda-version: 'cu118'
+          - torch-version: '2.1.0'
+            cuda-version: 'cu121'
+
+          - torch-version: '2.4.1'
+            cuda-version: 'cpu'
+          - torch-version: '2.4.1'
+            cuda-version: '118'
+          - torch-version: '2.4.1'
+            cuda-version: '121'
+          - torch-version: '2.4.1'
+            cuda-version: '124'
+          
+          - torch-version: '2.5.1'
+            cuda-version: 'cpu'
+          - torch-version: '2.5.1'
+            cuda-version: '118'
+          - torch-version: '2.5.1'
+            cuda-version: '121'
+          - torch-version: '2.5.1'
+            cuda-version: '124'
+
+          - torch-version: '2.6.0'
+            cuda-version: 'cpu'
+          - torch-version: '2.6.0'
+            cuda-version: '118'
+          - torch-version: '2.6.0'
+            cuda-version: '124'
+          - torch-version: '2.6.0'
+            cuda-version: '126'
+          
+
     steps:
       - name: Free disk space
         run: |

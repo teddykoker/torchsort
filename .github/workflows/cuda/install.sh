@@ -16,6 +16,12 @@ case "${cuda_version}" in
   "cu121")
     url=https://developer.download.nvidia.com/compute/cuda/12.1.1/local_installers/cuda-repo-ubuntu2004-12-1-local_12.1.1-530.30.02-1_amd64.deb
     ;;
+  "cu124")
+    url=https://developer.download.nvidia.com/compute/cuda/12.4.1/local_installers/cuda-repo-ubuntu2204-12-4-local_12.4.1-550.54.15-1_amd64.deb
+    ;;
+  "cu126")
+    url=https://developer.download.nvidia.com/compute/cuda/12.6.3/local_installers/cuda-repo-ubuntu2404-12-6-local_12.6.3-560.35.05-1_amd64.deb
+    ;;
   *)
     >&2 echo "Unsupported cuda_version: ${cuda_version}"
     exit 1
