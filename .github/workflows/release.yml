@@ -68,6 +68,36 @@ jobs:
           - torch-version: '2.6.0'
             cuda-version: 'cu126'
 
+        exclude:
+          # torch 2.0.1 is not available for python 3.12
+          - python-version: '3.12'
+            include-combo: 
+              torch-version: '2.0.1'
+              cuda-version: 'cpu'
+          - python-version: '3.12'
+            include-combo: 
+              torch-version: '2.0.1'
+              cuda-version: 'cu117'
+          - python-version: '3.12'
+            include-combo: 
+              torch-version: '2.0.1'
+              cuda-version: 'cu118'
+
+          # torch 2.1.0 is not available for python 3.12
+          - python-version: '3.12'
+            include-combo: 
+              torch-version: '2.1.0'
+              cuda-version: 'cpu'
+          - python-version: '3.12'
+            include-combo: 
+              torch-version: '2.1.0'
+              cuda-version: 'cu118'
+          - python-version: '3.12'
+            include-combo: 
+              torch-version: '2.1.0'
+              cuda-version: 'cu121'
+
+
     steps:
       - name: Free disk space
         run: |
