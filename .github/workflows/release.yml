@@ -66,7 +66,6 @@ jobs:
             cuda-version: '124'
           - torch-version: '2.6.0'
             cuda-version: '126'
-          
 
     steps:
       - name: Free disk space
