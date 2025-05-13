@@ -33,12 +33,12 @@ if [[ "${os}" != "Linux" ]]; then
   exit 1
 fi
 
-wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-ubuntu2004.pin
-sudo mv cuda-ubuntu2004.pin /etc/apt/preferences.d/cuda-repository-pin-600
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-ubuntu2404.pin
+sudo mv cuda-ubuntu2404.pin /etc/apt/preferences.d/cuda-repository-pin-600
 wget "${url}"
 sudo dpkg -i "$(basename "${url}")"
 
-keyfile=$(ls /var/cuda-repo-ubuntu2004-*/cuda-*-keyring.gpg)
+keyfile=$(ls /var/cuda-repo-ubuntu2404-*/cuda-*-keyring.gpg)
 if [[ -f "${keyfile}" ]]; then
   sudo cp "${keyfile}" /usr/share/keyrings
 else
