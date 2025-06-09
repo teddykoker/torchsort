@@ -12,7 +12,7 @@ dynamic = ["version"]  # Version is defined in setup.py and read by setuptools
 description = "Differentiable sorting and ranking in PyTorch"
 readme = "README.md"
 requires-python = ">=3.7"
-license = { file = "LICENSE" }
+license = "Apache-2.0"
 authors = [
     { name = "Teddy Koker" }
 ]
