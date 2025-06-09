@@ -126,8 +126,9 @@ jobs:
         env:
           TORCHSORT_VERSION_SUFFIX: "+${{ matrix.include-combo.cuda-version }}-torch${{ matrix.include-combo.torch-version }}"
         run: |
+          export PATH=/usr/local/cuda/bin:$PATH
           export FORCE_CUDA=1
-          export TORCH_CUDA_ARCH_LIST="3.5;5.0+PTX;6.0;7.0;7.5;8.0;8.6"
+          export TORCH_CUDA_ARCH_LIST="6.0;7.0;7.5;8.0;8.6+PTX"
           TORCH_VERSION=`echo "pt${{ matrix.include-combo.torch-version }}" | sed "s/..$//" | sed "s/\.//g"`
           CUDA_VERSION=`echo ${{ matrix.include-combo.cuda-version }}`
           export TORCHSORT_VERSION_SUFFIX="+$TORCH_VERSION$CUDA_VERSION"
