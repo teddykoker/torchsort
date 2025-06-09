@@ -40,8 +40,8 @@ Thanks to @levnikmyskin, @sachit-menon for pointing this out!
 Pre-built wheels are currently available on Linux for recent Python/PyTorch/CUDA combinations:
 
 ```bash
-# torchsort version, supports >= 0.1.9
-export TORCHSORT=0.1.9
+# torchsort version, supports >= 0.1.10
+export TORCHSORT=0.1.10
 # PyTorch version, supports pt26, pt25, pt24, pt21, pt20, and pt113 for versions
 # 2.6, 2.5, 2.4, 2.1, 2.0, and 1.13 respectively
 export TORCH=pt26
