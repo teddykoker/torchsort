@@ -28,8 +28,11 @@ dependencies = [
 "Repository" = "https://github.com/teddykoker/torchsort"
 "Bug Tracker" = "https://github.com/teddykoker/torchsort/issues"
 
-[project.optional-dependencies]
-testing = [
+[dependency-groups]
+dev = [
+    "fast-soft-sort",
     "pytest",
-    "fast_soft_sort @ git+https://github.com/google-research/fast-soft-sort.git@6a52ce79869ab16e1e0f39149a84f50f8ad648c5"
 ]
+
+[tool.uv.sources]
+fast-soft-sort = { git = "https://github.com/google-research/fast-soft-sort.git", rev = "6a52ce79869ab16e1e0f39149a84f50f8ad648c5" }
