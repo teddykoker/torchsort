@@ -144,6 +144,13 @@ The `torchsort` CUDA kernel performs quite well with sequence lengths under
 CUDA kernel can likely be further optimized to achieve performance closer to that of the
 built in `torch.sort`.
 
+## Parallel Implementation (Still under development)
+
+`torchsort` has support for `SoftSort_Parallel` and `SoftRank_Parallel` for both kinds of regularization. These functions support both sequence-level and batch-level parallelism. They are tested against theirs sequential counterparts given in [Unit Tests](tests/test_ops_nnp.py). Their wall-clock results are as follows. 
+
+![Parallel Benchmark L2](extra/benchmark_cuda_nnp_l2.png)
+
+![Parallel Benchmark KL](extra/benchmark_cuda_nnp_kl.png)
 
 ## Reference
 
