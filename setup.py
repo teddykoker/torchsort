@@ -59,20 +59,13 @@ with open("README.md") as f:
 
 
 setup(
-    name="torchsort",
     version="0.1.10" + os.getenv("TORCHSORT_VERSION_SUFFIX", ""),
-    description="Differentiable sorting and ranking in PyTorch",
-    author="Teddy Koker",
-    url="https://github.com/teddykoker/torchsort",
-    license="Apache",
     long_description=long_description,
     long_description_content_type="text/markdown",
     packages=["torchsort"],
     classifiers=[
         "Programming Language :: Python :: 3",
     ],
-    install_requires=["torch"],
-    python_requires=">=3.7",
     extras_require={
         "testing": [
             "pytest",

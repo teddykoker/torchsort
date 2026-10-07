@@ -10,9 +10,10 @@ build-backend = "setuptools.build_meta"
 name = "torchsort"
 dynamic = ["version", "optional-dependencies"]  # Version is defined in setup.py and read by setuptools
 description = "Differentiable sorting and ranking in PyTorch"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 readme = "README.md"
 requires-python = ">=3.7"
-license = { file = "LICENSE" }
 authors = [
     { name = "Teddy Koker" }
 ]
