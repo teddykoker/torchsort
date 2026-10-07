@@ -59,7 +59,7 @@ with open("README.md") as f:
 
 
 setup(
-    version="0.1.10" + os.getenv("TORCHSORT_VERSION_SUFFIX", ""),
+    version="0.1.11" + os.getenv("TORCHSORT_VERSION_SUFFIX", ""),
     long_description=long_description,
     long_description_content_type="text/markdown",
     packages=["torchsort"],
