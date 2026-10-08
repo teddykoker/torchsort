@@ -2,7 +2,9 @@
 
 import os
 import sys
+import shutil
 from functools import lru_cache
+import warnings
 from subprocess import DEVNULL, call
 
 import torch
@@ -13,8 +15,13 @@ from torch.utils import cpp_extension
 @lru_cache(None)
 def cuda_toolkit_available():
     # https://github.com/idiap/fast-transformers/blob/master/setup.py
+    executable_path = shutil.which("nvcc")
+
+    if not executable_path:
+        return False
+
     try:
-        call(["nvcc"], stdout=DEVNULL, stderr=DEVNULL)
+        call([executable_path], stdout=DEVNULL, stderr=DEVNULL)
         return True
     except FileNotFoundError:
         return False
@@ -42,6 +49,8 @@ def ext_modules():
                 sources=["torchsort/isotonic_cuda.cu"],
             ),
         )
+    else:
+        warnings.warn("nvcc not available. Skipping CUDA support.", UserWarning)
     return extensions
 
 
@@ -50,20 +59,13 @@ with open("README.md") as f:
 
 
 setup(
-    name="torchsort",
-    version="0.1.10" + os.getenv("TORCHSORT_VERSION_SUFFIX", ""),
-    description="Differentiable sorting and ranking in PyTorch",
-    author="Teddy Koker",
-    url="https://github.com/teddykoker/torchsort",
-    license="Apache",
+    version="0.1.11" + os.getenv("TORCHSORT_VERSION_SUFFIX", ""),
     long_description=long_description,
     long_description_content_type="text/markdown",
     packages=["torchsort"],
     classifiers=[
         "Programming Language :: Python :: 3",
     ],
-    install_requires=["torch"],
-    python_requires=">=3.7",
     extras_require={
         "testing": [
             "pytest",
